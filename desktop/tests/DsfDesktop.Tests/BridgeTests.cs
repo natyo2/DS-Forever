@@ -42,6 +42,7 @@ namespace DsfDesktop.Tests
         public string Input(string deviceId, Dictionary<string, object> m) { lock (Inputs) Inputs.Add(m.Str("op")); return InputResult; }
         public readonly List<string> InputEnds = new List<string>();
         public void InputEnded(string deviceId) { lock (InputEnds) InputEnds.Add(deviceId); }
+        public string KitFile(string rel) => null;
         public Dictionary<string, object> GameKit() => new Dictionary<string, object> { ["files"] = new Dictionary<string, object> { [".build.info"] = "eA==" } };
         public void Dispose() => T.Dispose();
     }

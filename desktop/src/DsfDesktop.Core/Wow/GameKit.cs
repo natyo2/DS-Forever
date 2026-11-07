@@ -39,6 +39,46 @@ namespace DsfDesktop.Wow
             return files;
         }
 
+        /// <summary>
+        /// The kit's BIG files, fetched over the bridge's HTTP (/v1/kit/...) instead of in the message: the group indexes the CDN config
+        /// names (archive-group, patch-archive-group, file-index, patch-file-index). The game's Battle.net client BUILDS the group
+        /// indexes itself, so Blizzard's CDN answers 404 for them; without one the companion cannot find a game file in the CDN's
+        /// archives (the Thor, 2026-11-07: "table 996357 ... 404"). Published path -> size, only those present on this PC.
+        /// </summary>
+        public static Dictionary<string, long> BigFiles(string wowRoot)
+        {
+            var big = new Dictionary<string, long>();
+            if (wowRoot == null) return big;
+            var buildInfo = Path.Combine(wowRoot, ".build.info");
+            if (!File.Exists(buildInfo)) return big;
+            foreach (var key in ConfigKeys(Encoding.UTF8.GetString(ReadShared(buildInfo))))
+            {
+                var cfg = Path.Combine(wowRoot, "Data", "config", key.Substring(0, 2), key.Substring(2, 2), key);
+                if (!File.Exists(cfg)) continue;
+                foreach (var line in Encoding.UTF8.GetString(ReadShared(cfg)).Split('\n'))
+                {
+                    var kv = line.Split(new[] { '=' }, 2);
+                    if (kv.Length != 2 || !GroupKeys.Contains(kv[0].Trim())) continue;
+                    var hash = kv[1].Trim().Split(' ')[0].ToLowerInvariant();
+                    var rel = "Data/indices/" + hash + ".index";
+                    var f = BigFile(wowRoot, rel);
+                    if (f != null) big[rel] = new FileInfo(f).Length;
+                }
+            }
+            return big;
+        }
+
+        static readonly HashSet<string> GroupKeys = new HashSet<string> { "archive-group", "patch-archive-group", "file-index", "patch-file-index" };
+        static readonly System.Text.RegularExpressions.Regex BigPath = new System.Text.RegularExpressions.Regex(@"^Data/indices/[0-9a-f]{32}\.index$");
+
+        /// <summary>the PC file behind a big kit path, or null (any other path, or not there): the bridge serves nothing else</summary>
+        public static string BigFile(string wowRoot, string rel)
+        {
+            if (wowRoot == null || rel == null || !BigPath.IsMatch(rel)) return null;
+            var f = Path.Combine(wowRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+            return File.Exists(f) ? f : null;
+        }
+
         /// <summary>a file the running game may hold open (read beside it, never locking it)</summary>
         public static byte[] ReadShared(string path)
         {

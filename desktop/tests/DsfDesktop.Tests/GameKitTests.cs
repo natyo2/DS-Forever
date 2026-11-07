@@ -45,6 +45,28 @@ namespace DsfDesktop.Tests
         }
 
         [Test]
+        public static void BigFilesAreTheConfigsGroupIndexesAndNothingElse()
+        {
+            using (var t = new Tmp())
+            {
+                const string bk = "6ca8f0e6eae877c8346388d55601a1bc", ck = "6aee492112bf17a47b7aae8e30447df2", ag = "94d9f8cadb773161c96e529470f18efe";
+                File.WriteAllText(t.P(".build.info"), "Branch!STRING:0|Build Key!HEX:16|CDN Key!HEX:16|Product!STRING:0\nus|" + bk + "|" + ck + "|wowf\n");
+                Directory.CreateDirectory(t.P("Data", "config", "6a", "ee"));
+                File.WriteAllText(t.P("Data", "config", "6a", "ee", ck), "archives = aa bb\narchive-group = " + ag + "\npatch-archive-group = 86440ed333261b49c24a34f619499c6c\n");
+                Directory.CreateDirectory(t.P("Data", "indices"));
+                File.WriteAllBytes(t.P("Data", "indices", ag + ".index"), new byte[123]);
+                File.WriteAllBytes(t.P("Data", "indices", "aa.index"), new byte[1]);
+                var big = GameKit.BigFiles(t.Dir);
+                A.Eq(1, big.Count, "only the group index present on the PC");
+                A.Eq(123L, big["Data/indices/" + ag + ".index"]);
+                A.NotNull(GameKit.BigFile(t.Dir, "Data/indices/" + ag + ".index"));
+                A.Null(GameKit.BigFile(t.Dir, "Data/indices/../../.build.info"));
+                A.Null(GameKit.BigFile(t.Dir, ".build.info"));
+                A.Null(GameKit.BigFile(t.Dir, "Data/indices/86440ed333261b49c24a34f619499c6c.index"), "not there");
+            }
+        }
+
+        [Test]
         public static void KitHasTheBuildInfoItsConfigsAndSixteenIndexes()
         {
             using (var t = new Tmp())

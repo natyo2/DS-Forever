@@ -67,7 +67,9 @@ sealed class BridgeMsg {
     data class PairStream(val ok: Boolean, val error: String) : BridgeMsg()
     object Unpaired : BridgeMsg()
     /** companion-only mode's art: the small files of a CASC folder from the PC's install (GameKit.cs), path -> bytes; [why] = none */
-    class GameKit(val files: Map<String, ByteArray>, val why: String) : BridgeMsg()
+    class GameKit(val files: Map<String, ByteArray>, val why: String,
+                  /** the big files to fetch over the bridge's HTTP (/v1/kit/<path>): path -> size */
+                  val fetch: Map<String, Long> = emptyMap()) : BridgeMsg()
     data class Unknown(val t: String) : BridgeMsg()
 }
 
@@ -122,6 +124,8 @@ object BridgeProtocol {
     fun gameKit(): String = JSONObject().put("t", "game_kit").toString()
 
     /** the only paths a game kit may hold: .build.info, the mark, build / CDN configs and bucket indexes (nothing else is ever written) */
+    /** the only paths a kit's big file may have (the group indexes, GameKit.BigFile) */
+    val KIT_BIG_PATH = Regex("""^Data/indices/[0-9a-f]{32}\.index$""")
     val KIT_PATH = Regex("""^(\.build\.info|\.ds-streamed|Data/config/[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{32}|Data/data/[0-9a-f]{10}\.idx)$""")
 
     private fun JSONObject.err() = optString("error", optString("code", "error"))
@@ -165,7 +169,10 @@ object BridgeProtocol {
                 val f = o.optJSONObject("files")
                 val files = f?.keys()?.asSequence()?.filter { KIT_PATH.matches(it) }
                     ?.mapNotNull { k -> runCatching { k to java.util.Base64.getDecoder().decode(f.optString(k)) }.getOrNull() }?.toMap().orEmpty()
-                BridgeMsg.GameKit(files, if (files.isEmpty()) o.optString("why").ifEmpty { "no files" } else "")
+                val big = o.optJSONArray("fetch")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty()
+                    .filter { KIT_BIG_PATH.matches(it.optString("path")) && it.optLong("size", -1) > 0 }
+                    .associate { it.optString("path") to it.optLong("size") }
+                BridgeMsg.GameKit(files, if (files.isEmpty()) o.optString("why").ifEmpty { "no files" } else "", big)
             }
             else -> BridgeMsg.Unknown(t)
         }

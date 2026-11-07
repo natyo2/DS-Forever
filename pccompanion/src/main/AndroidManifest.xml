@@ -3,10 +3,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- the companion keeps its logs and downloaded data under /sdcard/WowCompanion, as DS Forever does -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- the game kit's big files come from DS Forever Desktop's bridge over the home network's plain HTTP, as its WebSocket does -->
     <application
         android:label="DSF PC Companion"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
+        android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
 </manifest>

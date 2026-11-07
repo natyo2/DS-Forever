@@ -258,8 +258,9 @@ class PcCompanionActivity : Activity(), HostShell {
                 if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
             }
             // a former build's configs / indexes go (the folder is the kit, nothing else)
-            for (d in listOf("Data/config", "Data/data")) java.io.File(root, d).walkBottomUp().filter { it.isFile }
-                .filter { it.relativeTo(root).invariantSeparatorsPath !in kit.files }.forEach { it.delete() }
+            for (d in listOf("Data/config", "Data/data", "Data/indices")) java.io.File(root, d).walkBottomUp().filter { it.isFile }
+                .filter { it.relativeTo(root).invariantSeparatorsPath.let { p -> p !in kit.files && p !in kit.fetch } }.forEach { it.delete() }
+            for ((rel, size) in kit.fetch) fetchBig(root, rel, size)
         } catch (t: Throwable) { Log.w(TAG, "game kit: not written (${t.message})"); return }
         getSharedPreferences(com.jrees.wowcompanion.GameFiles.PREFS, MODE_PRIVATE).edit()
             .putString(com.jrees.wowcompanion.GameFiles.KEY_GAME_PATH, root.path).apply()
@@ -267,6 +268,25 @@ class PcCompanionActivity : Activity(), HostShell {
         Log.i(TAG, "game kit: ${kit.files.size} files${if (changed) ", a new build" else ""}; art harvest starts")
         if (changed && oldInfo != null) com.jrees.wowcompanion.ArtHarvest.restart(this)
         com.jrees.wowcompanion.ArtHarvest.start(applicationContext)
+    }
+
+    /** one of the kit's big files from Desktop's /v1/kit/ (the group indexes the CDN does not serve), unless already here whole */
+    private fun fetchBig(root: java.io.File, rel: String, size: Long) {
+        val f = java.io.File(root, rel)
+        if (f.isFile && f.length() == size) return
+        val h = pc ?: return
+        val part = java.io.File(f.path + ".part")
+        f.parentFile?.mkdirs()
+        val c = java.net.URL("http://${h.address}:${h.bridgePort}/v1/kit/$rel").openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 10_000; c.readTimeout = 30_000
+        c.setRequestProperty("X-Dsf-Device", store.clientId()); c.setRequestProperty("X-Dsf-Token", h.bridgeToken)
+        try {
+            if (c.responseCode != 200) throw java.io.IOException("HTTP ${c.responseCode}")
+            c.inputStream.use { i -> part.outputStream().use { o -> i.copyTo(o, 1 shl 16) } }
+            if (part.length() != size) throw java.io.IOException("${part.length()} of $size bytes")
+            if (!part.renameTo(f)) { f.delete(); part.renameTo(f) }
+            Log.i(TAG, "game kit: $rel (${size / 1024 / 1024} MB) from the PC")
+        } finally { c.disconnect(); part.delete() }
     }
 
     private fun authLost() {

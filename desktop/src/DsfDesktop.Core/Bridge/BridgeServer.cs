@@ -39,6 +39,8 @@ namespace DsfDesktop.Bridge
         void InputEnded(string deviceId);
         /// <summary>companion-only mode's art: the small files of a CASC folder (GameKit) as {files: {path: base64}}, or {why}</summary>
         Dictionary<string, object> GameKit();
+        /// <summary>the PC file behind one of the game kit's big paths (GameKit.BigFile), or null</summary>
+        string KitFile(string rel);
     }
 
     /// <summary>the documents since the current log began (what a fresh LogTail would read from the file), capped</summary>
@@ -266,6 +268,24 @@ namespace DsfDesktop.Bridge
                             RunWs(new WsConn(s), s, peer);
                             return;
                         default:
+                            // the game kit's big files (companion-only mode's art): a paired device's token, a group index path, nothing else
+                            if (req.Path.StartsWith("/v1/kit/"))
+                            {
+                                if (host.Devices.Check(req.Header("X-Dsf-Device"), req.Header("X-Dsf-Token")) != TokenCheck.Ok)
+                                { HttpRequest.Respond(s, 401, "Unauthorized", "text/plain", "pair first"); return; }
+                                var file = host.KitFile(req.Path.Substring("/v1/kit/".Length));
+                                if (file == null) { HttpRequest.Respond(s, 404, "Not Found", "text/plain", "not found"); return; }
+                                using (var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                                {
+                                    var head = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " +
+                                        fs.Length + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n");
+                                    s.Write(head, 0, head.Length);
+                                    fs.CopyTo(s, 1 << 16);
+                                    s.Flush();
+                                }
+                                Log.I("bridge: game kit file " + req.Path.Substring("/v1/kit/".Length) + " to " + peer.Address);
+                                return;
+                            }
                             HttpRequest.Respond(s, 404, "Not Found", "text/plain", "not found");
                             return;
                     }

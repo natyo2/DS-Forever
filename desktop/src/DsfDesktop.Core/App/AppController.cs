@@ -343,10 +343,17 @@ namespace DsfDesktop.App
             {
                 var files = global::DsfDesktop.Wow.GameKit.Make(Wow?.Root);
                 Log.I("game kit: " + files.Count + " files, " + files.Values.Sum(b => (long)b.Length) / 1024 + " KB");
-                return new Dictionary<string, object> { ["files"] = files.ToDictionary(kv => kv.Key, kv => (object)Convert.ToBase64String(kv.Value)) };
+                var big = global::DsfDesktop.Wow.GameKit.BigFiles(Wow?.Root);
+                return new Dictionary<string, object>
+                {
+                    ["files"] = files.ToDictionary(kv => kv.Key, kv => (object)Convert.ToBase64String(kv.Value)),
+                    ["fetch"] = big.Select(kv => (object)new Dictionary<string, object> { ["path"] = kv.Key, ["size"] = kv.Value }).ToList(),
+                };
             }
             catch (Exception e) { Log.I("game kit: " + e.Message); return new Dictionary<string, object> { ["why"] = e.Message }; }
         }
+
+        public string KitFile(string rel) => global::DsfDesktop.Wow.GameKit.BigFile(Wow?.Root, rel);
 
         IntPtr WowHandle()
         {
