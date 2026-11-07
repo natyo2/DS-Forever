@@ -108,6 +108,26 @@ class PcCompanionActivity : Activity(), HostShell {
         } catch (t: Throwable) { Log.w(TAG, "move to the bottom screen: ${t.message}"); false }
     }
 
+    /**
+     * THE FOCUS GOES BACK TO THE TOP SCREEN (the Thor, 2026-11-07: "DSF PC Companion isn't responding" right after pairing). Android
+     * keeps one focused app; once this activity is it (its pairing screen was touched, its icon opened it) and its window is NOT
+     * FOCUSABLE, the controller's keys wait for a window that never comes and Android calls it an ANR. So whenever this becomes the top
+     * app while not typing, the streamer is brought back to the front on the top screen (its task as it is: the stream is not restarted).
+     */
+    override fun onTopResumedActivityChanged(isTop: Boolean) {
+        super.onTopResumedActivityChanged(isTop)
+        if (isTop && host != null && !typing) handBack()
+    }
+
+    private var handedBackAt = 0L
+    private fun handBack() {
+        if ((display?.displayId ?: Display.DEFAULT_DISPLAY) == Display.DEFAULT_DISPLAY) return     // one screen: nothing to hand back to
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - handedBackAt < 1_500) return
+        handedBackAt = now
+        if (openStreamer()) Log.i(TAG, "focus handed back to the top screen")
+    }
+
     /** the streamer (Artemis, else Moonlight) on the top screen; false = none installed */
     private fun openStreamer(): Boolean {
         val launch = STREAMERS.firstNotNullOfOrNull { p -> try { packageManager.getLaunchIntentForPackage(p) } catch (_: Throwable) { null } }
@@ -205,6 +225,7 @@ class PcCompanionActivity : Activity(), HostShell {
         bridgeFor(h)
         focusable(false)
         host = CompanionHost(this, this).also { it.onCreate(null); if (started) it.onStart() }
+        handBack()                                      // the pairing screen had the focus: the controller is Artemis's again
         Log.i(TAG, "companion up for ${h.name} (${h.address}:${h.bridgePort})")
     }
 
@@ -253,9 +274,11 @@ class PcCompanionActivity : Activity(), HostShell {
     }
 
     private fun focusable(on: Boolean) {
+        val wasTyping = typing
         typing = on && host != null
         if (on) window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         else {
+            if (wasTyping) main.post { handBack() }     // the typing is over: the controller goes back to the streamer
             window.currentFocus?.let { f ->
                 getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(f.windowToken, 0)
                 f.clearFocus()
