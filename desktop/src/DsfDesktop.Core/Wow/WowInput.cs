@@ -30,6 +30,7 @@ namespace DsfDesktop.Wow
         readonly Func<IntPtr, bool> bringToFront;
         readonly Func<IntPtr, bool> isForeground;
         readonly Action<INPUT[]> send;
+        readonly Action<int, int> setCursor;
         readonly HashSet<int> held = new HashSet<int>();
         readonly Stopwatch clock = Stopwatch.StartNew();
         readonly object gate = new object();
@@ -37,7 +38,7 @@ namespace DsfDesktop.Wow
         long refilledAt;
         IntPtr hwnd;
         long hwndAt = long.MinValue;
-        /// <summary>the last "pos" point (normalized virtual-desktop units) and when: a click's two edges are played there</summary>
+        /// <summary>the last "pos" point (screen pixels) and when: a click's two edges are played there</summary>
         int placedX, placedY;
         long placedAt = long.MinValue / 2;
 
@@ -45,8 +46,10 @@ namespace DsfDesktop.Wow
         /// <param name="bringToFront">WoW to the front; true = it is now</param>
         /// <param name="isForeground">null = the real foreground check; the tests pass their own</param>
         /// <param name="send">null = the real SendInput; the tests record instead</param>
-        public WowInput(Func<IntPtr> findWindow, Func<IntPtr, bool> bringToFront, Func<IntPtr, bool> isForeground = null, Action<INPUT[]> send = null)
+        public WowInput(Func<IntPtr> findWindow, Func<IntPtr, bool> bringToFront, Func<IntPtr, bool> isForeground = null, Action<INPUT[]> send = null,
+                        Action<int, int> setCursor = null)
         {
+            this.setCursor = setCursor ?? ((x, y) => SetCursorPos(x, y));
             this.findWindow = findWindow;
             this.bringToFront = bringToFront;
             this.isForeground = isForeground ?? WowWindow.IsForegroundHandle;
@@ -121,8 +124,8 @@ namespace DsfDesktop.Wow
                         // add-on's secure cell, which acts on the RELEASE over the same button, TapPad.lua). In controller mode the game
                         // parks its hidden cursor at a fixed point, so between the press and the release it could move away: each edge
                         // carries the last placed point, the cursor put back there in the same event.
-                        if (clock.ElapsedMilliseconds - placedAt < 2000) Mouse(edge | MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, placedX, placedY, 0);
-                        else Mouse(edge, 0, 0, 0);
+                        if (clock.ElapsedMilliseconds - placedAt < 2000) setCursor(placedX, placedY);
+                        Mouse(edge, 0, 0, 0);
                         return null;
                     case "scroll":
                         Mouse(MOUSEEVENTF_WHEEL, 0, 0, (int)Clamp(m.Long("amount"), -1200, 1200));
@@ -176,14 +179,14 @@ namespace DsfDesktop.Wow
             if (!GetClientRect(w, out RECT r)) return;
             var p = new POINT { X = 0, Y = 0 };
             if (!ClientToScreen(w, ref p)) return;
-            double sx = p.X + (x + 0.5) * (r.Right - r.Left) / rw;
-            double sy = p.Y + (y + 0.5) * (r.Bottom - r.Top) / rh;
-            int vx = GetSystemMetrics(76), vy = GetSystemMetrics(77), vw = GetSystemMetrics(78), vh = GetSystemMetrics(79);
-            if (vw <= 1 || vh <= 1) return;
-            int nx = (int)Math.Round((sx - vx) * 65535.0 / (vw - 1)), ny = (int)Math.Round((sy - vy) * 65535.0 / (vh - 1));
-            lastScreen = (int)sx + "," + (int)sy + " (client " + (r.Right - r.Left) + "x" + (r.Bottom - r.Top) + " at " + p.X + "," + p.Y + ")";
-            placedX = nx; placedY = ny; placedAt = clock.ElapsedMilliseconds;
-            Mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, nx, ny, 0);
+            // THE EXACT PIXEL (the add-on's tap cells are 6 x 2 px on a 1920 x 1080 game): the Thor sends millionths of the window, and
+            // the cursor is put on that pixel with SetCursorPos, never through SendInput's 0..65535 units (their rounding moved a tap
+            // onto the next row)
+            int sx = (int)Math.Floor(p.X + (x + 0.5) * (r.Right - r.Left) / rw);
+            int sy = (int)Math.Floor(p.Y + (y + 0.5) * (r.Bottom - r.Top) / rh);
+            lastScreen = sx + "," + sy + " (client " + (r.Right - r.Left) + "x" + (r.Bottom - r.Top) + " at " + p.X + "," + p.Y + ")";
+            placedX = sx; placedY = sy; placedAt = clock.ElapsedMilliseconds;
+            setCursor(sx, sy);
         }
 
         void Mouse(uint flags, int dx, int dy, int data)
@@ -212,5 +215,6 @@ namespace DsfDesktop.Wow
         [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr h, ref POINT p);
         [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
         [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
+        [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
     }
 }

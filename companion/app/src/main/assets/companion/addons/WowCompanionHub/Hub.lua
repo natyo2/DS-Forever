@@ -145,10 +145,10 @@ end
 -- between the buffs"): the game's DURABILITY figure (DurabilityFrame) rides too. Home draws it between its buff and debuff rows from
 -- what Bags.lua reads of it; the game shows / hides it by itself (DurabilityFrame_SetAlerts), and the OnShow hook below puts the 0 back.
 -- Its IsShown is untouched (alpha only), so Bags.lua still reads when the game shows it.
--- natyo2's fork (companion-only mode, the user 2026-11-07: "I'd prefer buffs/debuffs on the main screen"): the game's buffs and debuffs
--- stay on the top screen (they also flashed there whenever a new one landed, before the next heartbeat zeroed them again); the XP
--- bars and the durability figure still ride the "hud" element.
-local RIDERS = { "MainStatusTrackingBarContainer", "SecondaryStatusTrackingBarContainer", "DurabilityFrame" }
+-- natyo2's fork: the game's buffs and debuffs ride again (set 268): the player's own row under their big bar replaces them on the top
+-- screen (WowCompanionCharacter/TargetFrames.lua; the user 2026-11-07: "have the buffs alongside my big bar on the left").
+local RIDERS = { "BuffFrame", "DebuffFrame", "DeadlyDebuffFrame", "ExternalDefensivesFrame",
+                 "MainStatusTrackingBarContainer", "SecondaryStatusTrackingBarContainer", "DurabilityFrame" }
 local riders = { hidden = false, saved = {}, hooked = {} }
 
 local function riderFrame(name)

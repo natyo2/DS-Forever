@@ -216,14 +216,15 @@ class PcCompanionActivity : Activity(), HostShell {
         // taps are fractions of WoW's window on the PC, whatever its shape (TapBridge.anyShape); the PC plays them (WowInput)
         TapBridge.anyShape = true
         com.jrees.wowcompanion.ArtHarvest.mapsFirst = true     // before any art run starts (the icon retry may start one first)
-        com.jrees.wowcompanion.HomeView.aurasOnTop = true        // the game's own buffs show on the top screen (Hub.lua, set 263)
+        com.jrees.wowcompanion.HomeView.aurasOnTop = true        // the player's buffs show on the top screen, under their big bar
+        com.jrees.wowcompanion.GameUi.bigBarsOnTop = true         // TargetFrames.lua's bars: the resource bar defaults to off
         InputSink.displayW = TapBridge.ANY_SHAPE; InputSink.displayH = TapBridge.ANY_SHAPE
         LauncherHooks.pkg = packageName
         LauncherHooks.gameUp = { true }
         LauncherHooks.gameStartSec = System.currentTimeMillis() / 1000
         LauncherHooks.inFront = { false }               // the sign-in is the PC's business (Desktop), never typed from here
         val k = StreamKeys(BridgeInput { bridge }, TapBridge.ANY_SHAPE, TapBridge.ANY_SHAPE).also { keys = it }
-        TapSinks.wire(PlayMode.STREAM, null, k)
+        TapSinks.wire(PlayMode.STREAM, null, BridgeTapSink(k) { bridge })
         keyboard = { vk, down -> bridge?.send(BridgeProtocol.inputKbd(vk, down)) == true }
         bridgeFor(h)
         focusable(false)

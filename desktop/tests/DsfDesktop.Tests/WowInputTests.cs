@@ -18,7 +18,7 @@ namespace DsfDesktop.Tests
             public readonly WowInput In;
             public Rig()
             {
-                In = new WowInput(() => Window, h => { if (FocusWorks) Front = true; return Front; }, h => Front, a => Sent.AddRange(a));
+                In = new WowInput(() => Window, h => { if (FocusWorks) Front = true; return Front; }, h => Front, a => Sent.AddRange(a), (x, y) => { });
             }
             public string Key(int vk, bool down) => In.Handle(new Dictionary<string, object> { ["op"] = "key", ["vk"] = vk, ["down"] = down });
             public List<int> Keys(bool down) => Sent.Where(i => i.type == 1 && ((i.u.ki.dwFlags & 2) == 0) == down).Select(i => (int)i.u.ki.wVk).ToList();

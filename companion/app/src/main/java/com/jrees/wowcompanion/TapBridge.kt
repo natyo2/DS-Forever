@@ -108,7 +108,7 @@ object TapBridge {
      * display size is set to the same, and Desktop maps the fraction onto WoW's client area). Off = the Thor's top panel, as before.
      */
     @Volatile var anyShape = false
-    const val ANY_SHAPE = 10_000
+    const val ANY_SHAPE = 1_000_000
 
     /**
      * The top screen's size in the pixels `input -d 0 tap` uses, or null when it cannot be trusted.

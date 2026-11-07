@@ -108,9 +108,16 @@ object GameUi {
     // hub19: the party frames; ON by default since 2026-11-05 (the game hides health from add-ons: its own frames are the real health)
     private val SW_DEFAULT = mapOf(SW_PLAYER to false, SW_TARGET to false, SW_NP to true, SW_PRD to true, SW_WM to false, SW_PARTY to true)
     /** this character's choice for [part] (its default until one is made); the resource bar's old "HUD mode" choice carries over */
+    /**
+     * natyo2's fork, companion-only mode: the add-on draws the player's own big bar top left (TargetFrames.lua), so the resource bar
+     * under the character is OFF until the player turns it on (the user 2026-11-07: "I'd like to hide the native one")
+     */
+    @Volatile var bigBarsOnTop = false
+
     fun swWant(part: String): Boolean {
-        val who = character ?: return SW_DEFAULT[part] ?: false
-        val def = if (part == SW_PRD) prefs?.getBoolean("hud.$who", true) ?: true else SW_DEFAULT[part] ?: false
+        val prdDefault = !bigBarsOnTop
+        val who = character ?: return if (part == SW_PRD) prdDefault else SW_DEFAULT[part] ?: false
+        val def = if (part == SW_PRD) prefs?.getBoolean("hud.$who", prdDefault) ?: prdDefault else SW_DEFAULT[part] ?: false
         return prefs?.getBoolean("sw.$part.$who", def) ?: def
     }
     fun setSwitch(part: String, on: Boolean) {

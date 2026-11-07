@@ -15,3 +15,27 @@ class BridgeInput(private val bridge: () -> BridgeLog?) : MoonInput {
 
     private fun send(text: String) { bridge()?.send(text) }
 }
+
+/**
+ * COMPANION-ONLY MODE's tap sink: [StreamKeys] for every key (its key-safety rules), but its own exact pointer. The add-on's tap pad on
+ * a 1920 x 1080 game has cells 6 x 2 px (the Thor, 2026-11-07: the controller page's taps landed one row off, as "attack"; Tailoring's
+ * on its cell's edge), so a tap's point goes to Desktop as a fraction in millionths of WoW's window, never through StreamKeys' whole
+ * pixels of a picture; Desktop puts the cursor on that exact pixel (WowInput).
+ */
+class BridgeTapSink(private val keys: StreamKeys, private val bridge: () -> BridgeLog?) : com.jrees.wowcompanion.TapSink by keys {
+    override fun tap(fx: Float, fy: Float) {
+        moveTo(fx, fy)
+        send(BridgeProtocol.inputButton(StreamKeys.BUTTON_LEFT, true))
+        Thread.sleep(StreamKeys.CLICK_MS)
+        send(BridgeProtocol.inputButton(StreamKeys.BUTTON_LEFT, false))
+    }
+
+    override fun moveTo(fx: Float, fy: Float) {
+        val x = Math.round(fx.toDouble().coerceIn(0.0, 1.0) * EXACT).toInt(); val y = Math.round(fy.toDouble().coerceIn(0.0, 1.0) * EXACT).toInt()
+        send(BridgeProtocol.inputPos(x, y, EXACT, EXACT))
+    }
+
+    private fun send(text: String) { bridge()?.send(text) }
+
+    companion object { const val EXACT = 1_000_000 }
+}
