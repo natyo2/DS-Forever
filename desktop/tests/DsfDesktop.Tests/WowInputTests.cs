@@ -95,6 +95,23 @@ namespace DsfDesktop.Tests
         }
 
         [Test]
+        public static void ThePlayersKeyboardMayPressAltEscAndFKeysButNeverWindowsKeys()
+        {
+            var r = new Rig();
+            Func<int, bool, string> kbd = (vk, down) => r.In.Handle(new Dictionary<string, object> { ["op"] = "kbd", ["vk"] = vk, ["down"] = down });
+            A.Null(kbd(0x70, true)); A.Null(kbd(0x70, false));                 // F1 (party targeting)
+            A.Null(kbd(0x1B, true)); A.Null(kbd(0x1B, false));                 // Esc (the game menu)
+            A.Null(kbd(0xA4, true)); A.Null(kbd(0x5A, true)); A.Null(kbd(0x5A, false));   // Alt+Z (hide the UI)
+            A.NotNull(kbd(0x09, true), "Alt+Tab"); A.NotNull(kbd(0x73, true), "Alt+F4"); A.NotNull(kbd(0x1B, true), "Alt+Esc");
+            A.Null(kbd(0xA4, false));
+            A.NotNull(kbd(0x5B, true), "Win"); A.NotNull(kbd(0x5D, true), "Menu"); A.NotNull(kbd(0xAD, true), "a media key");
+            A.Null(kbd(0xA2, true)); A.NotNull(kbd(0x1B, true), "Ctrl+Esc"); A.Null(kbd(0xA2, false));
+            A.Eq(10, r.Sent.Count);
+            // the companion's own taps keep the strict rules
+            A.NotNull(r.Key(0x70, true), "F1 from a tap");
+        }
+
+        [Test]
         public static void MouseButtonsAndWheel()
         {
             var r = new Rig();

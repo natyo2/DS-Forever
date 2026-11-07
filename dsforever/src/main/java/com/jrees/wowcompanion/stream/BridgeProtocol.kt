@@ -102,6 +102,8 @@ object BridgeProtocol {
 
     // companion-only mode's input (protocol section 7, "input"): one key edge or one pointer event each, played by Desktop's WowInput
     fun inputKey(vk: Int, down: Boolean): String = input("key").put("vk", vk).put("down", down).toString()
+    /** the player's own keyboard (KeyboardBridgeService): one physical key edge; Desktop's rules for it are its own (WowInput "kbd") */
+    fun inputKbd(vk: Int, down: Boolean): String = input("kbd").put("vk", vk).put("down", down).toString()
     fun inputPos(x: Int, y: Int, w: Int, h: Int): String = input("pos").put("x", x).put("y", y).put("w", w).put("h", h).toString()
     fun inputMove(dx: Int, dy: Int): String = input("move").put("dx", dx).put("dy", dy).toString()
     fun inputButton(button: Int, down: Boolean): String = input("button").put("b", button).put("down", down).toString()

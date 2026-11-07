@@ -18,6 +18,8 @@ namespace DsfDesktop.Wow
     ///    (the Thor's StreamKeys refuses the same set first);
     ///  - a flood guard drops input beyond what a person typing could make;
     ///  - every key this device pressed is released when its session ends (<see cref="ReleaseAll"/>).
+    /// "kbd" is the player's own Bluetooth keyboard on the Thor (KeyboardBridgeService): one physical key edge each, so Alt, Esc and the
+    /// F-keys are the player's to press there; the Windows keys, Menu, media / launch keys, Alt+Tab, Alt+F4, Alt+Esc and Ctrl+Esc never.
     /// </summary>
     public sealed class WowInput
     {
@@ -52,6 +54,11 @@ namespace DsfDesktop.Wow
         public static bool SystemKey(int vk) => vk == 0x12 || vk == 0xA4 || vk == 0xA5 || vk == 0x5B || vk == 0x5C || vk == 0x5D || vk == 0x5F ||
             (vk >= 0x70 && vk <= 0x87) || vk == 0x2C || vk == 0x13 || vk == 0x14 || vk == 0x90 || vk == 0x91;
 
+        /// <summary>never pressed from the player's keyboard either: Win, Menu, Sleep, the browser / media / launch keys</summary>
+        public static bool KeyboardRefused(int vk) => vk == 0x5B || vk == 0x5C || vk == 0x5D || vk == 0x5F || (vk >= 0xA6 && vk <= 0xB7);
+
+        bool Held(params int[] vks) { foreach (var v in vks) if (held.Contains(v)) return true; return false; }
+
         /// <summary>one "input" message (docs/STREAM_BRIDGE_PROTOCOL.md section 7); null = played, else why not</summary>
         public string Handle(Dictionary<string, object> m)
         {
@@ -60,7 +67,7 @@ namespace DsfDesktop.Wow
                 var op = m.Str("op");
                 bool down = m.Bool("down");
                 // a key this device holds may always go up (never a stuck key), wherever the focus is
-                if (op == "key" && !down && held.Contains((int)m.Long("vk"))) { Key((int)m.Long("vk"), false); return null; }
+                if ((op == "key" || op == "kbd") && !down && held.Contains((int)m.Long("vk"))) { Key((int)m.Long("vk"), false); return null; }
                 if (!Take()) return "too much input at once: dropped";
                 var w = Window();
                 if (w == IntPtr.Zero) return "WoW isn't running";
@@ -72,6 +79,13 @@ namespace DsfDesktop.Wow
                         if (vk <= 0 || vk > 0xFE || SystemKey(vk)) return "a system key is never sent";
                         if (vk == 0x1B && (held.Contains(0xA2) || held.Contains(0xA3) || held.Contains(0x11))) return "Ctrl+Esc is never sent";
                         Key(vk, down);
+                        return null;
+                    case "kbd":
+                        int kv = (int)m.Long("vk");
+                        if (kv <= 0 || kv > 0xFE || KeyboardRefused(kv)) return "that key is never sent to the PC";
+                        if (down && Held(0x12, 0xA4, 0xA5) && (kv == 0x09 || kv == 0x73 || kv == 0x1B)) return "Alt+Tab / Alt+F4 / Alt+Esc are never sent";
+                        if (down && kv == 0x1B && Held(0x11, 0xA2, 0xA3)) return "Ctrl+Esc is never sent";
+                        Key(kv, down);
                         return null;
                     case "pos":
                         long rw = m.Long("w"), rh = m.Long("h");

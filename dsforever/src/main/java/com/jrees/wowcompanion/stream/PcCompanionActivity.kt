@@ -222,6 +222,7 @@ class PcCompanionActivity : Activity(), HostShell {
         LauncherHooks.inFront = { false }               // the sign-in is the PC's business (Desktop), never typed from here
         val k = StreamKeys(BridgeInput { bridge }, TapBridge.ANY_SHAPE, TapBridge.ANY_SHAPE).also { keys = it }
         TapSinks.wire(PlayMode.STREAM, null, k)
+        keyboard = { vk, down -> bridge?.send(BridgeProtocol.inputKbd(vk, down)) == true }
         bridgeFor(h)
         focusable(false)
         host = CompanionHost(this, this).also { it.onCreate(null); if (started) it.onStart() }
@@ -300,6 +301,7 @@ class PcCompanionActivity : Activity(), HostShell {
         host = null
         keys?.releaseAll(); keys = null
         if (current !== this) return
+        keyboard = null
         TapSinks.wire(PlayMode.LOCAL, null, null)
         PlayModes.set(PlayMode.LOCAL, null, "")
         bridge = null
@@ -358,6 +360,8 @@ class PcCompanionActivity : Activity(), HostShell {
         const val TAG = "DSFPCCOMP"
         /** the one companion-only screen that owns the shared state (PlayModes, TapSinks, TapBridge.anyShape, ModeBridge.pcCompanion) */
         @Volatile private var current: PcCompanionActivity? = null
+        /** the Bluetooth keyboard's way to the PC (KeyboardBridgeService), null = no companion connected; false = not sent */
+        @Volatile var keyboard: ((vk: Int, down: Boolean) -> Boolean)? = null
         const val EXTRA_OPEN_STREAMER = "dsforever_open_streamer"
         /** the CASC folder built from the PC's game kit (app-private: no file access needed) */
         const val KIT_DIR = "pcgame"
