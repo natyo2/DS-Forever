@@ -1957,6 +1957,7 @@ class CompanionHost(base: Context, private val shell: HostShell) : ContextWrappe
             "questack" -> { questsView.ack(msg); homeView.ack(msg); if (current) { worldMapRoom.onQuestAck(msg); mapView.onQuestAck(msg) } }
             // character's aura documents: Home's buff / debuff buttons and their list (listed in AGENT_LOG first)
             "auras" -> homeView.onAuras(msg, current)
+            "target" -> homeView.onTarget(msg)
             "auraack" -> homeView.auraAck(msg)
             "interact" -> {
                 interactView.update(msg, current)

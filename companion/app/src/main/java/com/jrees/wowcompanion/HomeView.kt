@@ -71,12 +71,14 @@ class HomeView(
     /** the controller layout has come at least once: until then the Cast view says "Waiting" where the clock would stand */
     private var barsSeen = false
 
-    private enum class Part { BARS, QUESTS, CHAT, PARTY, MAP, AURAS, CHAT_FULL }
+    private enum class Part { BARS, QUESTS, CHAT, PARTY, MAP, AURAS, CHAT_FULL, TARGET }
 
     private val questPane = QuestPane(context)
     private val chatPane = ChatPane(context)
     private val mapSlot = FrameLayout(context)
     private val auraPane = AuraPane(context)
+    /** natyo2's fork: the player's target at the top of the chat well, while something is targeted ([TargetCard]) */
+    private val targetCard = TargetCard(context)
     private val barsSlot = FrameLayout(context)
     private val chatSlot = FrameLayout(context)
     /** PARTY MODE's module (PARTY_BUILD.md 4.2): the game's raid-style cells over the left column, never hidden while `party` comes */
@@ -94,7 +96,7 @@ class HomeView(
     // CLOSE is added last, so it is drawn above the module it closes
     private val views: Map<Part, View> = linkedMapOf(
         Part.BARS to barsSlot, Part.QUESTS to questPane, Part.CHAT to chatPane, Part.PARTY to partyView, Part.MAP to mapSlot,
-        Part.AURAS to auraPane, Part.CHAT_FULL to chatSlot,
+        Part.AURAS to auraPane, Part.CHAT_FULL to chatSlot, Part.TARGET to targetCard,
     )
 
     /** where each part is now, in px of the frame; animated towards the state's places */
@@ -1181,7 +1183,26 @@ class HomeView(
     private fun places(s: HomeScreen, w: Float, h: Float): Map<Part, RectF> {
         val base = placesBase(s, w, h)
         if (s.full != null && !s.takeover) return base
-        return withParty(base, s, w)
+        return withTarget(withParty(base, s, w))
+    }
+
+    /**
+     * natyo2's fork (the user 2026-11-07: "have the target at the top of the chat bit, we still want the controls to be visible"):
+     * while something is targeted the card takes the top of the chat's well and the chat the rest; the bars above are untouched.
+     * A well too short for both keeps the chat alone.
+     */
+    private fun withTarget(p: Map<Part, RectF>): Map<Part, RectF> {
+        if (targetCard.target == null) return p
+        val chat = p[Part.CHAT] ?: return p
+        if (chat.height() < TARGET_H + 140f) return p
+        val g = UiKit.MODULE_GAP
+        return p + mapOf(Part.TARGET to RectF(chat.left, chat.top, chat.right, chat.top + TARGET_H),
+            Part.CHAT to RectF(chat.left, chat.top + TARGET_H + g, chat.right, chat.bottom))
+    }
+
+    /** the player's target (the "target" document, WowCompanionCharacter/Target.lua) */
+    fun onTarget(msg: JSONObject) {
+        if (targetCard.update(msg)) post { shown?.let { apply(it, animate = isShown) } }
     }
 
     private fun placesBase(s: HomeScreen, w: Float, h: Float): Map<Part, RectF> {
@@ -1648,7 +1669,7 @@ class HomeView(
         for ((p, v) in views) {
             val o = when (p) {
                 Part.BARS -> pauseTop
-                Part.CHAT, Part.CHAT_FULL, Part.PARTY -> left
+                Part.CHAT, Part.CHAT_FULL, Part.PARTY, Part.TARGET -> left
                 Part.QUESTS -> if (cardOverMap()) pauseMap else left
                 Part.MAP, Part.AURAS -> pauseMap
             }
@@ -2543,6 +2564,8 @@ class HomeView(
          * on Home draws no aura rows of its own. Set by companion-only mode; the open map module still lists them.
          */
         @Volatile var aurasOnTop = false
+        /** the target card's height at the top of the chat well (name, health, power, a cast, one row of auras) */
+        private const val TARGET_H = 196f
 
         /** one pick + act pair at a time: the add-on's pick serves one action (CompanionHost's restore uses the same gap) */
         const val WATCH_GAP_MS = 700L
