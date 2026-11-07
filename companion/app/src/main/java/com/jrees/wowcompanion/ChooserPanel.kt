@@ -69,6 +69,7 @@ class ChooserPanel(context: Context) : View(context) {
         val r = ModeBridge.route
         val was = page
         page = when {
+            ModeBridge.pcCompanion.let { it != null && (context as? android.content.ContextWrapper)?.baseContext === it } -> Page.NONE
             // the chooser comes only once the start-up checks have passed (the user, 2026-10-28); meanwhile the setup's own page shows
             r == StartMode.Route.Chooser && SetupBridge.checksPass() -> if (shortcuts) Page.SHORTCUTS else Page.CHOOSER
             r is StartMode.Route.Into && r.mode == StartMode.Mode.STREAM && ModeBridge.streamCovers && !LauncherHooks.gameUp() -> Page.STREAM

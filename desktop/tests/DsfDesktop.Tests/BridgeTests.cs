@@ -37,6 +37,11 @@ namespace DsfDesktop.Tests
         public Dictionary<string, object> Focus() => new Dictionary<string, object> { ["ok"] = false, ["why"] = "WoW isn't running" };
         public Dictionary<string, object> AddonsStatus() => new Dictionary<string, object> { ["state"] = "current" };
         public Dictionary<string, object> AddonsInstall() => new Dictionary<string, object> { ["state"] = "current", ["result"] = "ok" };
+        public readonly List<string> Inputs = new List<string>();
+        public string InputResult = "WoW isn't running";
+        public string Input(string deviceId, Dictionary<string, object> m) { lock (Inputs) Inputs.Add(m.Str("op")); return InputResult; }
+        public readonly List<string> InputEnds = new List<string>();
+        public void InputEnded(string deviceId) { lock (InputEnds) InputEnds.Add(deviceId); }
         public void Dispose() => T.Dispose();
     }
 
@@ -378,6 +383,30 @@ namespace DsfDesktop.Tests
                 c.Send(new Dictionary<string, object> { ["t"] = "unpair" });
                 c.Until("unpaired");
                 A.False(h.Devices.Validate("thor-9", token));
+            }
+        }
+
+        [Test]
+        public static void CompanionOnlyInputReachesTheHostAndEndsWithTheSession()
+        {
+            using (var h = new FakeHost())
+            using (var s = Start(h))
+            {
+                using (var c = new Client(s.Port))
+                {
+                    var ok = Pair(c, h, "thor-7", stream: false);
+                    A.Null(ok.Str("moonlight_pin"), "companion-only pairing: no Moonlight PIN");
+                    c.Until("backlog_end");
+                    c.Send(new Dictionary<string, object> { ["t"] = "input", ["op"] = "key", ["vk"] = 0x41, ["down"] = true });
+                    A.Eq("WoW isn't running", c.Until("status").Last().Str("text"), "a refusal shows on the Thor's status line");
+                    h.InputResult = null;
+                    c.Send(new Dictionary<string, object> { ["t"] = "input", ["op"] = "key", ["vk"] = 0x41, ["down"] = false });
+                    c.Send(new Dictionary<string, object> { ["t"] = "ping", ["id"] = "after" });
+                    c.Until("pong");
+                    lock (h.Inputs) A.Eq(2, h.Inputs.Count);
+                }
+                for (int i = 0; i < 50 && h.InputEnds.Count == 0; i++) Thread.Sleep(20);
+                lock (h.InputEnds) A.Eq("thor-7", h.InputEnds.FirstOrDefault(), "the session's keys are released when it ends");
             }
         }
     }

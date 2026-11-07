@@ -55,13 +55,14 @@ android {
         manifestPlaceholders["screenOrientation"] = "unspecified"
         buildConfigField("boolean", "XR_BUILD", "false")
 
-        versionCode = 1288
-        versionName = "1.0.16"
+        versionCode = 1289
+        versionName = "1.0.16.1"
 
         buildConfigField("boolean", "GOLD", "false")
         // DS Forever's self-update (Track C, the user's rulings 2026-10-12): the PUBLIC release repo "owner/repo" whose latest GitHub
         // release carries DS-Forever-<version>.apk. Empty = no repo yet: the update check says so and does nothing. No token, ever.
-        buildConfigField("String", "DSF_RELEASE_REPO", "\"Jreese702/DS-Forever\"")
+        // natyo2's fork (companion-only mode): its own releases, signed with its own key (upstream's APKs can't install over it)
+        buildConfigField("String", "DSF_RELEASE_REPO", "\"natyo2/DS-Forever\"")
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(

@@ -273,6 +273,7 @@ namespace DsfDesktop.App
             Sunshine = new SunshineHost(SunshineLayout);
             Sunshine.Status += _ => Fire();
             if (!Sunshine.Available) { Log.I("sunshine not bundled at " + SunshineLayout.Exe); return; }
+            if (!Settings.BuiltInStreaming) { Log.I("sunshine: built-in streaming is off (another streamer shows the screen)"); return; }
             int port = PortPlanner.Pick(Settings.SunshinePort, PortPlanner.TcpFree, PortPlanner.UdpFree);
             if (port < 0) { Log.I("sunshine: no free port set"); return; }
             if (port != Settings.SunshinePort) { Settings.SunshinePort = port; SaveSettings(); }
@@ -301,8 +302,45 @@ namespace DsfDesktop.App
 
         public void RestartSunshine()
         {
+            if (!Settings.BuiltInStreaming) return;
             Sunshine?.Stop();
             Sunshine?.Start();
+        }
+
+        /// <summary>"Built-in streaming" on or off: Desktop's own Sunshine starts or stops (off = Apollo or another streamer)</summary>
+        public void SetBuiltInStreaming(bool on)
+        {
+            if (Settings.BuiltInStreaming == on) return;
+            Settings.BuiltInStreaming = on;
+            SaveSettings();
+            if (!on) { Sunshine?.Stop(); Log.I("sunshine: stopped (built-in streaming off)"); }
+            else { try { Sunshine?.Dispose(); } catch (Exception) { } api?.Dispose(); api = null; StartSunshine(); }
+            Fire();
+        }
+
+        // ---------------------------------------------------------------- companion-only input (WowInput)
+        readonly Dictionary<string, WowInput> inputs = new Dictionary<string, WowInput>();
+
+        public string Input(string deviceId, Dictionary<string, object> m)
+        {
+            WowInput w;
+            lock (inputs)
+                if (!inputs.TryGetValue(deviceId, out w))
+                    inputs[deviceId] = w = new WowInput(WowHandle, h => WowWindow.FocusHandle(h) == null);
+            return w.Handle(m);
+        }
+
+        public void InputEnded(string deviceId)
+        {
+            WowInput w;
+            lock (inputs) { inputs.TryGetValue(deviceId, out w); inputs.Remove(deviceId); }
+            w?.ReleaseAll();
+        }
+
+        IntPtr WowHandle()
+        {
+            using (var p = WowWindow.Find(Wow != null && Flavor != null ? Wow.FlavorDir(Flavor) : null))
+                return p?.MainWindowHandle ?? IntPtr.Zero;
         }
 
         public void StreamPair(string deviceId, string name, string pin, string peerIp, Action<string> done)

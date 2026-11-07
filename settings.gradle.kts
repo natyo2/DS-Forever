@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 rootProject.name = "DS-Forever"
 include(":app")
 include(":dsforever")   // DS Forever fork: the companion inside the launcher
+include(":pccompanion") // natyo2's fork: the companion alone, beside another streamer (PcCompanionActivity)

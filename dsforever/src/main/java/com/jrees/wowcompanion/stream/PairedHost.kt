@@ -44,7 +44,8 @@ data class PairedHost(
     companion object {
         fun fromJson(o: JSONObject): PairedHost? {
             val address = o.optString("address"); val cert = o.optString("serverCert")
-            if (address.isEmpty() || cert.isEmpty()) return null
+            // no Sunshine certificate is fine for a companion-only PC (the bridge alone: HostStore.COMPANION_SLOT)
+            if (address.isEmpty() || (cert.isEmpty() && o.optString("bridgeToken").isEmpty())) return null
             return PairedHost(
                 name = o.optString("name", address), address = address,
                 httpPort = o.optInt("httpPort", 47989), httpsPort = o.optInt("httpsPort", 47984),
@@ -66,16 +67,18 @@ data class PairedHost(
 }
 
 /** the paired PC and the app's own Moonlight identity, kept in private preferences */
-class HostStore(context: Context) {
+class HostStore(context: Context, private val slot: String = KEY_HOST) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun host(): PairedHost? = prefs.getString(KEY_HOST, null)?.let { s -> try { PairedHost.fromJson(JSONObject(s)) } catch (_: Throwable) { null } }
-    fun save(h: PairedHost) { prefs.edit().putString(KEY_HOST, h.toJson().toString()).apply() }
-    fun forget() { prefs.edit().remove(KEY_HOST).apply() }
+    fun host(): PairedHost? = prefs.getString(slot, null)?.let { s -> try { PairedHost.fromJson(JSONObject(s)) } catch (_: Throwable) { null } }
+    fun save(h: PairedHost) { prefs.edit().putString(slot, h.toJson().toString()).apply() }
+    fun forget() { prefs.edit().remove(slot).apply() }
 
-    /** made once per install (the bridge protocol's "client"), 32 lower-case hex */
-    fun clientId(): String = prefs.getString(KEY_CLIENT, null) ?: Hex.of(ByteArray(16).also { java.security.SecureRandom().nextBytes(it) })
-        .lowercase().also { prefs.edit().putString(KEY_CLIENT, it).apply() }
+    /** made once per install and slot (the bridge protocol's "client"), 32 lower-case hex: the companion-only slot is a device of its own
+     *  on Desktop, so pairing it never replaces Streaming's bridge token */
+    private val clientKey = if (slot == KEY_HOST) KEY_CLIENT else "${KEY_CLIENT}_$slot"
+    fun clientId(): String = prefs.getString(clientKey, null) ?: Hex.of(ByteArray(16).also { java.security.SecureRandom().nextBytes(it) })
+        .lowercase().also { prefs.edit().putString(clientKey, it).apply() }
 
     /** the Moonlight identity, made on first use (an RSA key: a second or so) */
     @Synchronized fun identity(): ClientIdentity {
@@ -89,6 +92,8 @@ class HostStore(context: Context) {
     companion object {
         const val PREFS = "dsf_stream"
         private const val KEY_HOST = "host"
+        /** companion-only mode's PC (bridge only): its own slot, so Streaming's Moonlight-paired PC is never replaced by it */
+        const val COMPANION_SLOT = "companion_host"
         private const val KEY_CLIENT = "client_id"
         private const val KEY_CERT = "client_cert"
         private const val KEY_KEY = "client_key"

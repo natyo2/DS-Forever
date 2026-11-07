@@ -293,4 +293,57 @@ class PairingTest {
         assertTrue(steps.finishBridge(false, "PIN_WRONG") is StreamPairing.Finish.Failed)
         assertEquals("unpair", b.sent.last().getString("t"))
     }
+
+    // ---------------------------------------------------------------- companion-only (Apollo + Artemis show the screen)
+    @Test fun companionOnlyPairsTheBridgeAloneAndIsRemembered() {
+        val steps = FakeSteps()
+        val end = StreamPairing(steps).pairCompanionOnly(pc.copy(sunshinePort = 0), "123 456", "192.168.1")
+        val host = (end as StreamPairing.State.Paired).host
+        assertEquals(listOf("arm 123456", "close"), steps.log)                      // no Moonlight, no pair_stream wait
+        assertTrue(host.hasBridge); assertEquals("", host.serverCertPem); assertEquals(0, host.httpPort)
+        // a bridge-only host survives the round trip through HostStore's JSON (no Sunshine certificate)
+        assertEquals(host, PairedHost.fromJson(host.toJson()))
+    }
+
+    @Test fun companionOnlyRefusesBadCodesAndPcsWithoutDesktop() {
+        assertTrue(StreamPairing(FakeSteps()).pairCompanionOnly(pc, "12", "") is StreamPairing.State.BadCode)
+        assertTrue(StreamPairing(FakeSteps()).pairCompanionOnly(pc.copy(bridgePort = 0), "123456", "") is StreamPairing.State.Failed)
+        val steps = FakeSteps(arm = StreamPairing.Arm.WrongCode(2))
+        assertEquals(StreamPairing.State.WrongCode(2), StreamPairing(steps).pairCompanionOnly(pc, "111111", ""))
+        assertEquals(listOf("arm 111111", "close"), steps.log)
+    }
+
+    @Test fun companionOnlyDeviceStepsAskForNoStream() {
+        val b = FakeBridge("123456")
+        val steps = RealPairSteps(client, "dev2", dialer = { _, _, _, _ -> b }, deviceName = "AYN Thor (companion)", stream = false)
+        steps.armBridge(pc, "123456")
+        assertFalse(b.sent.first().getBoolean("stream"))
+        steps.closeBridge()
+    }
+
+    @Test fun aSunshineHostWithoutCertificateOrBridgeIsNotRemembered() {
+        val h = PairedHost(name = "x", address = "10.0.0.2", serverCertPem = "")
+        assertEquals(null, PairedHost.fromJson(h.toJson()))
+    }
+
+    @Test fun companionInputMessagesAreOneEventEach() {
+        val sent = ArrayList<org.json.JSONObject>()
+        val keys = StreamKeys(object : MoonInput {
+            val real = BridgeInput { null }        // nothing connected: never throws
+            override fun key(vk: Int, down: Boolean, mods: Int) { real.key(vk, down, mods); sent.add(org.json.JSONObject(BridgeProtocol.inputKey(vk, down))) }
+            override fun mousePosition(x: Int, y: Int, refW: Int, refH: Int) { sent.add(org.json.JSONObject(BridgeProtocol.inputPos(x, y, refW, refH))) }
+            override fun mouseMove(dx: Int, dy: Int) { sent.add(org.json.JSONObject(BridgeProtocol.inputMove(dx, dy))) }
+            override fun mouseButton(down: Boolean, button: Int) { sent.add(org.json.JSONObject(BridgeProtocol.inputButton(button, down))) }
+        }, 10_000, 10_000, sleep = {})
+        keys.tap(0.25f, 0.5f)
+        assertEquals(listOf("pos", "button", "button"), sent.map { it.getString("op") })
+        assertEquals(2499, sent[0].getInt("x")); assertEquals(4999, sent[0].getInt("y")); assertEquals(10_000, sent[0].getInt("w"))
+        assertTrue(sent[1].getBoolean("down")); assertFalse(sent[2].getBoolean("down")); assertEquals(1, sent[1].getInt("b"))
+        sent.clear()
+        keys.key(64, true)                                                             // Alt (X keycode 64): refused before the PC
+        assertTrue(sent.isEmpty())
+        keys.key(38, true); keys.key(38, false)                                        // A
+        assertEquals(listOf(0x41, 0x41), sent.map { it.getInt("vk") })
+        assertTrue(sent.all { it.getString("t") == "input" })
+    }
 }

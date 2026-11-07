@@ -33,6 +33,10 @@ namespace DsfDesktop.Bridge
         void LoginFile(string email, string password);
         Dictionary<string, object> AddonsStatus();
         Dictionary<string, object> AddonsInstall();
+        /// <summary>companion-only mode: one "input" event from the device (protocol section 7); null = played, else why not</summary>
+        string Input(string deviceId, Dictionary<string, object> m);
+        /// <summary>the device's session ended: every key it still holds goes up</summary>
+        void InputEnded(string deviceId);
     }
 
     /// <summary>the documents since the current log began (what a fresh LogTail would read from the file), capped</summary>
@@ -292,6 +296,7 @@ namespace DsfDesktop.Bridge
         {
             BridgeSession s = null;
             PairAttempt pair = null;
+            int inputSaidAt = Environment.TickCount - 10_000;
             SetTimeout(st, 120_000);  // before authentication: hello now, or a pairing the user is typing a code for
             try
             {
@@ -403,6 +408,15 @@ namespace DsfDesktop.Bridge
                             var sa = s;
                             Task.Run(() => sa.Enqueue(With("addons", host.AddonsInstall())));
                             break;
+                        case "input":
+                            var refused = host.Input(s.DeviceId, m);
+                            // the companion's status line says why (once every 2 s at most: a refused drag is many events)
+                            if (refused != null && Environment.TickCount - inputSaidAt > 2000)
+                            {
+                                inputSaidAt = Environment.TickCount;
+                                s.Enqueue(new Dictionary<string, object> { ["t"] = "status", ["text"] = refused });
+                            }
+                            break;
                         case "unpair":
                             host.Devices.Remove(s.DeviceId);
                             s.Enqueue(new Dictionary<string, object> { ["t"] = "unpaired" });
@@ -421,6 +435,7 @@ namespace DsfDesktop.Bridge
                     bool removed;
                     lock (gate) removed = sessions.Remove(s);
                     s.Stop();
+                    try { host.InputEnded(s.DeviceId); } catch (Exception) { }
                     if (removed) Log.I("bridge: " + s.Name + " disconnected");
                     try { SessionsChanged?.Invoke(); } catch (Exception) { }
                 }

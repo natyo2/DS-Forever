@@ -79,8 +79,9 @@ object BridgeProtocol {
     fun hello(deviceId: String, token: String): String =
         JSONObject().put("t", "hello").put("proto", PROTO).put("device_id", deviceId).put("token", token).toString()
 
-    fun pairHello(deviceId: String, name: String): String =
-        JSONObject().put("t", "pair_hello").put("proto", PROTO).put("device_id", deviceId).put("name", name).put("stream", true).toString()
+    /** [stream] false = companion-only (another streamer shows the PC's screen): no Moonlight PIN, no Sunshine pairing */
+    fun pairHello(deviceId: String, name: String, stream: Boolean = true): String =
+        JSONObject().put("t", "pair_hello").put("proto", PROTO).put("device_id", deviceId).put("name", name).put("stream", stream).toString()
 
     fun pairProof(proof: String): String = JSONObject().put("t", "pair_proof").put("proof", proof).toString()
 
@@ -94,6 +95,14 @@ object BridgeProtocol {
     }
 
     fun focus(): String = JSONObject().put("t", "focus").toString()
+
+    // companion-only mode's input (protocol section 7, "input"): one key edge or one pointer event each, played by Desktop's WowInput
+    fun inputKey(vk: Int, down: Boolean): String = input("key").put("vk", vk).put("down", down).toString()
+    fun inputPos(x: Int, y: Int, w: Int, h: Int): String = input("pos").put("x", x).put("y", y).put("w", w).put("h", h).toString()
+    fun inputMove(dx: Int, dy: Int): String = input("move").put("dx", dx).put("dy", dy).toString()
+    fun inputButton(button: Int, down: Boolean): String = input("button").put("b", button).put("down", down).toString()
+    fun inputScroll(amount: Int): String = input("scroll").put("amount", amount).toString()
+    private fun input(op: String) = JSONObject().put("t", "input").put("op", op)
     /** 2026-11-04 (the stream test: the PC ran add-on set 239 against the Thor's 251, "a TOOON of Lua errors"): Desktop installs its
      *  bundled add-on set into the PC game (it only did at its own start or a button); it answers {"t":"addons", ..., "result"} */
     fun addonsInstall(): String = JSONObject().put("t", "addons_install").toString()

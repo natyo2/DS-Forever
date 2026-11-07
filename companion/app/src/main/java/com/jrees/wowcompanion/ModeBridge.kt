@@ -21,6 +21,13 @@ object ModeBridge {
     @Volatile var route: StartMode.Route? = null
         private set
 
+    /**
+     * COMPANION-ONLY MODE's activity (PcCompanionActivity on the bottom screen, another streamer on the top), null = not up: the chooser
+     * and Streaming's pages never cover ITS companion, whatever route the launcher's activity was left on (the launcher's own is untouched)
+     */
+    @Volatile var pcCompanion: Context? = null
+        set(v) { field = v; changed() }
+
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
     fun onChange(l: () -> Unit) { listeners.add(l) }
     fun offChange(l: () -> Unit) { listeners.remove(l) }

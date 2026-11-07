@@ -23,7 +23,8 @@ namespace DsfDesktop.Thor
     /// </summary>
     public sealed class ReleaseFeed
     {
-        public const string LatestUrl = "https://api.github.com/repos/Jreese702/DS-Forever/releases/latest";
+        // natyo2's fork (companion-only mode): its own releases, so Desktop never updates itself back to upstream's build
+        public const string LatestUrl = "https://api.github.com/repos/natyo2/DS-Forever/releases/latest";
         static readonly HttpClient Http = MakeClient();
 
         static HttpClient MakeClient()

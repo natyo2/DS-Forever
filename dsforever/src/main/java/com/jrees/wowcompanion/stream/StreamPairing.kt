@@ -97,6 +97,39 @@ class StreamPairing(private val steps: Steps, private val onState: (State) -> Un
         }
     }
 
+    /**
+     * COMPANION-ONLY (another streamer, e.g. Apollo + Artemis, shows the PC's screen): the bridge alone, no Moonlight handshake. The
+     * steps must have been made with stream = false (no Moonlight PIN asked for). The remembered host has the bridge and no Sunshine.
+     */
+    fun pairCompanionOnly(pc: FoundPc, typed: String, thorSubnet: String): State {
+        val check = CodeEntry.validate(typed)
+        if (check !is CodeEntry.Check.Ok) return emit(State.BadCode(CodeEntry.message(check) ?: "Check the code."))
+        if (!pc.hasBridge) return emit(State.Failed("DS Forever Desktop isn't running on ${pc.name}.", true))
+        try {
+            emit(State.Working("Checking the code with ${pc.name}…"))
+            val armed = when (val a = steps.armBridge(pc, check.code)) {
+                is Arm.Armed -> a
+                is Arm.WrongCode -> return emit(State.WrongCode(a.left))
+                Arm.CodeExpired -> return emit(State.Failed("That code expired. Enter the new code shown in DS Forever Desktop."))
+                Arm.NotPairing -> return emit(State.Failed("Pairing is paused after too many wrong codes: press Refresh in DS Forever Desktop, then enter the new code."))
+                is Arm.Unreachable -> return emit(State.Failed("Couldn't reach DS Forever Desktop on ${pc.name} (${a.why})."))
+            }
+            if (!BridgeProtocol.validToken(armed.token)) {
+                try { steps.finishBridge(false, "bad token") } catch (_: Throwable) {}
+                return emit(State.Failed("The PC sent a bad companion token. Pair again."))
+            }
+            return emit(State.Paired(PairedHost(
+                name = armed.name.ifEmpty { pc.name }, address = pc.address, httpPort = 0, httpsPort = 0, serverCertPem = "",
+                bridgePort = pc.bridgePort, bridgeTls = pc.bridgeTls, bridgeFingerprint = armed.fingerprint, bridgeToken = armed.token,
+                desktopId = armed.desktopId.ifEmpty { pc.desktopId }, subnet = thorSubnet, lastSeenMs = System.currentTimeMillis(),
+            )))
+        } catch (t: Throwable) {
+            return emit(State.Failed("Pairing stopped: ${t.message ?: t.javaClass.simpleName}"))
+        } finally {
+            try { steps.closeBridge() } catch (_: Throwable) {}
+        }
+    }
+
     /** a PC with a plain Sunshine: [pin] is shown for Sunshine's own PIN page while the handshake waits for it */
     fun pairPlainSunshine(pc: FoundPc, pin: String, thorSubnet: String): State {
         if (!pc.hasSunshine) return emit(State.Failed("${pc.name} isn't streaming (no Sunshine found)."))

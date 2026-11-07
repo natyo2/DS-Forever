@@ -3,6 +3,12 @@
     <!-- Streaming (S2): the PC on the LAN (normal permissions, no prompt; the launcher already holds them) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Companion-only mode opens the top screen's streamer (Artemis, else Moonlight): Android 11+ hides other apps unless named -->
+    <queries>
+        <package android:name="com.limelight.noir" />
+        <package android:name="com.limelight" />
+        <package android:name="com.limelight.debug" />
+    </queries>
     <application>
         <!-- Streaming mode (S2): WoW on the PC through Moonlight's core, on the top screen; the companion stays on the bottom -->
         <activity
@@ -11,6 +17,22 @@
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
+        <!-- Companion-only mode (PcCompanionActivity.kt): its own home-screen icon; the companion on the bottom screen, fed by DS Forever
+             Desktop's bridge, while another streamer (Apollo + Artemis) shows WoW on the top one. Its own task, so it lives beside both -->
+        <activity
+            android:name="com.jrees.wowcompanion.stream.PcCompanionActivity"
+            android:exported="true"
+            android:label="DSF PC Companion"
+            android:taskAffinity="app.dsforever.pccompanion"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <!-- Settings > Frame generation: picks the player's own Lossless.dll (FrameGenPickActivity.kt) -->
         <activity
             android:name="com.jrees.wowcompanion.FrameGenPickActivity"

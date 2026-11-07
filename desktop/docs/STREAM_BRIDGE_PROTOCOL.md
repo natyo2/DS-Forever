@@ -129,6 +129,16 @@ Moonlight PIN). **S2 adopted S3's wire format**; this file describes it as the T
 - `{"t":"ping","id":"..."}` → `{"t":"pong","id":"..."}` (optional; WebSocket pings do the keep-alive).
 - `{"t":"unpair"}` → `{"t":"unpaired"}`, then close: the device is removed from Desktop.
 - `{"t":"addons_status"}` / `{"t":"addons_install"}` → `{"t":"addons",...}` (Desktop's add-on install; not used by the Thor yet).
+- **Companion-only input** (the Thor paired with `"stream":false` and another streamer, e.g. Apollo + Artemis, shows the screen, so
+  there is no Moonlight input channel): `{"t":"input","op":...}`, one key edge or one pointer event per message, played by Desktop's
+  `WowInput` with plain SendInput keyboard / mouse events:
+  - `"op":"key","vk":<Windows virtual key>,"down":bool`
+  - `"op":"pos","x","y","w","h"` — the pointer to (x, y) of a w x h picture of WoW's client area (the Thor sends 10000 x 10000 shares)
+  - `"op":"move","dx","dy"` (relative), `"op":"button","b":1|3,"down":bool` (left / right), `"op":"scroll","amount"` (120 = a notch)
+
+  Played only while WoW is the PC's foreground window (one focus attempt), never Alt / Win / Menu / F-keys / Print Screen / Pause /
+  lock keys / Ctrl+Esc, through a flood guard (400 events, 200 a second). A refusal answers `{"t":"status","text":"<why>"}` (at most
+  every 2 s). Every key a device still holds is released when its session ends. Nothing reads or touches the WoW process.
 
 ## 8. What the Thor tells the player
 

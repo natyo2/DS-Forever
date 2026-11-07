@@ -11,6 +11,8 @@ class RealPairSteps(
     private val deviceId: String,
     private val dialer: BridgeDialer = WsClient,
     private val deviceName: String = (Build.MODEL ?: "AYN Thor").ifBlank { "AYN Thor" },
+    /** false = companion-only pairing (no Moonlight PIN asked for) */
+    private val stream: Boolean = true,
 ) : StreamPairing.Steps {
     private var bridge: BridgeConn? = null
     /** after pair_ok the bridge keeps talking (welcome, backlog, pings) while Moonlight's handshake runs: read here, the confirmation kept */
@@ -24,7 +26,7 @@ class RealPairSteps(
         // a wss bridge's advert may name its certificate: what TLS showed must match it (a second PC answering there would not)
         if (pc.bridgeTls && pc.bridgeFingerprint.isNotEmpty() && !pc.bridgeFingerprint.equals(c.peerFingerprint, ignoreCase = true))
             return StreamPairing.Arm.Unreachable("its certificate doesn't match its advert")
-        c.send(BridgeProtocol.pairHello(deviceId, deviceName))
+        c.send(BridgeProtocol.pairHello(deviceId, deviceName, stream))
         while (true) {
             val text = c.receive() ?: return StreamPairing.Arm.Unreachable("the bridge closed (${c.closeCode})")
             when (val m = BridgeProtocol.parse(text) ?: continue) {

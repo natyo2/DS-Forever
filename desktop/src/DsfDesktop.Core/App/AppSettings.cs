@@ -24,6 +24,9 @@ namespace DsfDesktop.App
         /// <summary>"Match the PC's screen to the stream": the streamed screen takes the Thor's resolution while it is connected, then goes back
         /// (the user 2026-11-01: "Everything just looks so tiny on my thor")</summary>
         public bool MatchStreamResolution { get; set; } = true;
+        /// <summary>"Built-in streaming": off = Desktop runs no Sunshine of its own, because another streamer (Apollo, ...) shows the
+        /// screen and the Thor's companion-only mode sends its taps and keys through the bridge instead</summary>
+        public bool BuiltInStreaming { get; set; } = true;
         /// <summary>the display device id Sunshine captures (the monitor WoW was last seen on); null = the primary display</summary>
         public string CaptureDevice { get; set; }
         /// <summary>the folder question is asked once; after that the user uses "Choose folder" themselves</summary>

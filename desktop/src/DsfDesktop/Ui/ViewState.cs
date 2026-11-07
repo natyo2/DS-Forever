@@ -30,7 +30,7 @@ namespace DsfDesktop.Ui
         public string ThorProgress = "";
         public bool ThorBusy;
 
-        public bool StartWithWindows, StartWow, MatchStream;
+        public bool StartWithWindows, StartWow, MatchStream, BuiltInStreaming;
         public int BridgePort;
     }
 
@@ -45,6 +45,7 @@ namespace DsfDesktop.Ui
         void SetStartWithWindows(bool on);
         void SetStartWow(bool on);
         void SetMatchStream(bool on);
+        void SetBuiltInStreaming(bool on);
         Task<string> ThorInstall();
         Task<string> ThorInstallFile(string apk);
         void ThorWatching(bool on);
@@ -79,7 +80,8 @@ namespace DsfDesktop.Ui
             }).ToList();
 
             var sh = c.Sunshine;
-            if (sh == null) { v.Host = "starting"; }
+            if (!c.Settings.BuiltInStreaming) { v.Host = "off: Apollo or another streamer shows the screen"; v.HostDot = Theme.Dim; }
+            else if (sh == null) { v.Host = "starting"; }
             else if (!sh.Available) { v.Host = "missing from this copy (reinstall Desktop)"; v.HostDot = Theme.Bad; }
             else if (sh.Running) { v.Host = "ready on port " + c.SunshinePort; v.HostDot = Theme.Ok; }
             else { v.Host = sh.LastStatus; v.HostDot = Theme.Warn; }
@@ -110,6 +112,7 @@ namespace DsfDesktop.Ui
             try { v.StartWithWindows = AutoStart.IsOn(); } catch (Exception) { }
             v.StartWow = c.Settings.StartWowOnStream;
             v.MatchStream = c.Settings.MatchStreamResolution;
+            v.BuiltInStreaming = c.Settings.BuiltInStreaming;
             return v;
         }
     }
@@ -126,6 +129,7 @@ namespace DsfDesktop.Ui
         public void SetStartWithWindows(bool on) => AutoStart.Set(on, c.Paths.Exe);
         public void SetStartWow(bool on) { c.Settings.StartWowOnStream = on; c.SaveSettings(); }
         public void SetMatchStream(bool on) => c.SetMatchStream(on);
+        public void SetBuiltInStreaming(bool on) => c.SetBuiltInStreaming(on);
         public Task<string> ThorInstall() => c.Thor.InstallLatest();
         public Task<string> ThorInstallFile(string apk) => c.Thor.InstallLocal(apk);
         public void ThorWatching(bool on) => c.ThorWatching = on;

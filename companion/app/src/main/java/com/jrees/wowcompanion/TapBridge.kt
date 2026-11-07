@@ -103,6 +103,14 @@ object TapBridge {
     private var display0: Point? = null      // only ever holds a VALIDATED size
 
     /**
+     * COMPANION-ONLY MODE (another streamer shows WoW running on the PC, at whatever shape the PC's window has): a tap is a fraction of
+     * the game's own window, so the pad's px map onto a square [ANY_SHAPE] x [ANY_SHAPE] space with no shape check (InputSink's
+     * display size is set to the same, and Desktop maps the fraction onto WoW's client area). Off = the Thor's top panel, as before.
+     */
+    @Volatile var anyShape = false
+    const val ANY_SHAPE = 10_000
+
+    /**
      * The top screen's size in the pixels `input -d 0 tap` uses, or null when it cannot be trusted.
      *
      * NEVER `getRealSize` / `getRealMetrics` on DEFAULT_DISPLAY. On the Thor that answer is
@@ -152,6 +160,7 @@ object TapBridge {
         if (pad == null) return null
         val pw = pad.optDouble("pw", 0.0); val ph = pad.optDouble("ph", 0.0)
         if (pw <= 0 || ph <= 0 || gx < 0 || gy < 0 || gx > pw || gy > ph) return null
+        if (anyShape) return Point((gx * ANY_SHAPE / pw).roundToInt(), (gy * ANY_SHAPE / ph).roundToInt())
         val d = gameDisplay(ctx) ?: run { Log.w(TAG, "refused: no trusted display size"); return null }
         // The game fills the top screen (960x540 scaled 2x), so both must have the SAME SHAPE. A mismatch
         // means the size is wrong -- the old bug gave 1240x1080 (1.15) against the game's 1.78 -- and a tap

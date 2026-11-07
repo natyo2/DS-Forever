@@ -65,6 +65,9 @@ class BridgeLog(
         thread?.interrupt()
     }
 
+    /** one message to the bridge as it is (companion-only mode's input); false = no connection right now */
+    fun send(text: String): Boolean = try { conn?.send(text); conn != null } catch (_: Throwable) { false }
+
     /** "focus WoW" (sent when the stream starts and after a reconnect); false = no connection right now */
     fun focusWow(): Boolean = try { conn?.send(BridgeProtocol.focus()); conn != null } catch (_: Throwable) { false }
 
