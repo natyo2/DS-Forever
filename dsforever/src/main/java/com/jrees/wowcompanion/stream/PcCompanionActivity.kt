@@ -234,8 +234,39 @@ class PcCompanionActivity : Activity(), HostShell {
         val id = store.clientId()
         PlayModes.set(PlayMode.STREAM, { onMsg, onStatus ->
             BridgeLog(h.address, h.bridgePort, h.bridgeTls, h.bridgeFingerprint, h.bridgeToken, id, WsClient, onMsg, onStatus,
-                onAuthLost = { main.post { authLost() } }).also { bridge = it }
+                onAuthLost = { main.post { authLost() } }, onGameKit = { kit -> worker.execute { useKit(kit) } }).also { bridge = it }
         }, "${h.desktopId}@${h.address}:${h.bridgePort}")
+    }
+
+    /**
+     * THE GAME ART (icons, UI kit, maps), built from the PC's install: Desktop's game kit (GameKit.cs: .build.info, its configs, 16 empty
+     * bucket indexes) becomes a CASC folder in this app's own storage, the art harvest's game folder (GameFiles' "game_path"); every
+     * game file then reads as missing and the harvest fetches only what its art needs from Blizzard's public CDN, as for a direct
+     * install. A new build on the PC = the harvest runs again for it. Worker thread.
+     */
+    private fun useKit(kit: BridgeMsg.GameKit) {
+        if (kit.why.isNotEmpty()) { Log.w(TAG, "game kit: ${kit.why}"); return }
+        val root = java.io.File(filesDir, KIT_DIR)
+        val oldInfo = runCatching { java.io.File(root, ".build.info").readBytes() }.getOrNull()
+        try {
+            for ((rel, bytes) in kit.files) {
+                val f = java.io.File(root, rel)
+                if (f.isFile && f.readBytes().contentEquals(bytes)) continue
+                f.parentFile?.mkdirs()
+                val tmp = java.io.File(f.path + ".part")
+                tmp.writeBytes(bytes)
+                if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+            }
+            // a former build's configs / indexes go (the folder is the kit, nothing else)
+            for (d in listOf("Data/config", "Data/data")) java.io.File(root, d).walkBottomUp().filter { it.isFile }
+                .filter { it.relativeTo(root).invariantSeparatorsPath !in kit.files }.forEach { it.delete() }
+        } catch (t: Throwable) { Log.w(TAG, "game kit: not written (${t.message})"); return }
+        getSharedPreferences(com.jrees.wowcompanion.GameFiles.PREFS, MODE_PRIVATE).edit()
+            .putString(com.jrees.wowcompanion.GameFiles.KEY_GAME_PATH, root.path).apply()
+        val changed = oldInfo == null || !oldInfo.contentEquals(kit.files[".build.info"])
+        Log.i(TAG, "game kit: ${kit.files.size} files${if (changed) ", a new build" else ""}; art harvest starts")
+        if (changed && oldInfo != null) com.jrees.wowcompanion.ArtHarvest.restart(this)
+        com.jrees.wowcompanion.ArtHarvest.start(applicationContext)
     }
 
     private fun authLost() {
@@ -308,6 +339,8 @@ class PcCompanionActivity : Activity(), HostShell {
         /** the one companion-only screen that owns the shared state (PlayModes, TapSinks, TapBridge.anyShape, ModeBridge.pcCompanion) */
         @Volatile private var current: PcCompanionActivity? = null
         const val EXTRA_OPEN_STREAMER = "dsforever_open_streamer"
+        /** the CASC folder built from the PC's game kit (app-private: no file access needed) */
+        const val KIT_DIR = "pcgame"
         /** the top screen's streamer, first installed wins: Artemis (Apollo's client), then Moonlight */
         val STREAMERS = listOf("com.limelight.noir", "com.limelight", "com.limelight.debug")
     }

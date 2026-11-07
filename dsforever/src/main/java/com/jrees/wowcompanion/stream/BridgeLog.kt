@@ -37,6 +37,8 @@ class BridgeLog(
     private val onBnetReady: (BnetFormAt?) -> Unit = {},
     /** the saved login (email, password), for WoW's login.txt on the PC */
     private val savedLogin: () -> Pair<String, String>? = { null },
+    /** companion-only mode: the PC's game kit (asked for at every welcome); null = never asked */
+    private val onGameKit: ((BridgeMsg.GameKit) -> Unit)? = null,
     /** the waits between tries (the tests pass a fake that also ends the loop) */
     private val sleeper: (Long) -> Unit = { Thread.sleep(it) },
 ) : LogSource {
@@ -119,7 +121,9 @@ class BridgeLog(
                     // the PC game gets Desktop's add-on set BEFORE it is started (never while it runs: its files are read at the start)
                     if (!m.wowRunning) c.send(BridgeProtocol.addonsInstall())
                     c.send(BridgeProtocol.focus())
+                    if (onGameKit != null) c.send(BridgeProtocol.gameKit())
                 }
+                is BridgeMsg.GameKit -> onGameKit?.invoke(m)
                 is BridgeMsg.Doc -> emit(m)
                 is BridgeMsg.Lines -> for (l in m.lines) docs.line(l)
                 is BridgeMsg.Gap -> { bridgeGaps++; onStatus("gap at seq ${m.seq} (expected ${m.expected})") }

@@ -337,6 +337,17 @@ namespace DsfDesktop.App
             w?.ReleaseAll();
         }
 
+        public Dictionary<string, object> GameKit()
+        {
+            try
+            {
+                var files = global::DsfDesktop.Wow.GameKit.Make(Wow?.Root);
+                Log.I("game kit: " + files.Count + " files, " + files.Values.Sum(b => (long)b.Length) / 1024 + " KB");
+                return new Dictionary<string, object> { ["files"] = files.ToDictionary(kv => kv.Key, kv => (object)Convert.ToBase64String(kv.Value)) };
+            }
+            catch (Exception e) { Log.I("game kit: " + e.Message); return new Dictionary<string, object> { ["why"] = e.Message }; }
+        }
+
         IntPtr WowHandle()
         {
             using (var p = WowWindow.Find(Wow != null && Flavor != null ? Wow.FlavorDir(Flavor) : null))

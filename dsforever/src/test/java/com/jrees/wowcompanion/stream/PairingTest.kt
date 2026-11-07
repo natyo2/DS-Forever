@@ -326,6 +326,21 @@ class PairingTest {
         assertEquals(null, PairedHost.fromJson(h.toJson()))
     }
 
+    @Test fun aGameKitKeepsOnlyCascPaths() {
+        val b64 = { s: String -> java.util.Base64.getEncoder().encodeToString(s.toByteArray()) }
+        val files = org.json.JSONObject()
+            .put(".build.info", b64("info")).put(".ds-streamed", "")
+            .put("Data/config/6c/a8/6ca8f0e6eae877c8346388d55601a1bc", b64("cfg"))
+            .put("Data/data/0f00000001.idx", b64("idx"))
+            .put("../../shared_prefs/evil.xml", b64("x")).put("Data/data/../../x.idx", b64("x")).put("/sdcard/x", b64("x"))
+        val m = BridgeProtocol.parse(org.json.JSONObject().put("t", "game_kit").put("files", files).toString()) as BridgeMsg.GameKit
+        assertEquals(setOf(".build.info", ".ds-streamed", "Data/config/6c/a8/6ca8f0e6eae877c8346388d55601a1bc", "Data/data/0f00000001.idx"), m.files.keys)
+        assertEquals("cfg", String(m.files.getValue("Data/config/6c/a8/6ca8f0e6eae877c8346388d55601a1bc")))
+        assertEquals("", m.why)
+        val none = BridgeProtocol.parse("""{"t":"game_kit","why":"the WoW folder isn't known"}""") as BridgeMsg.GameKit
+        assertTrue(none.files.isEmpty()); assertEquals("the WoW folder isn't known", none.why)
+    }
+
     @Test fun companionInputMessagesAreOneEventEach() {
         val sent = ArrayList<org.json.JSONObject>()
         val keys = StreamKeys(object : MoonInput {

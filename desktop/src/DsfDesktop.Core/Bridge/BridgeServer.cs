@@ -37,6 +37,8 @@ namespace DsfDesktop.Bridge
         string Input(string deviceId, Dictionary<string, object> m);
         /// <summary>the device's session ended: every key it still holds goes up</summary>
         void InputEnded(string deviceId);
+        /// <summary>companion-only mode's art: the small files of a CASC folder (GameKit) as {files: {path: base64}}, or {why}</summary>
+        Dictionary<string, object> GameKit();
     }
 
     /// <summary>the documents since the current log began (what a fresh LogTail would read from the file), capped</summary>
@@ -416,6 +418,10 @@ namespace DsfDesktop.Bridge
                                 inputSaidAt = Environment.TickCount;
                                 s.Enqueue(new Dictionary<string, object> { ["t"] = "status", ["text"] = refused });
                             }
+                            break;
+                        case "game_kit":
+                            var sk = s;
+                            Task.Run(() => sk.Enqueue(With("game_kit", host.GameKit())));
                             break;
                         case "unpair":
                             host.Devices.Remove(s.DeviceId);

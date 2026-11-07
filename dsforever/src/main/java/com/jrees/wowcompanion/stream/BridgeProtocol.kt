@@ -66,6 +66,8 @@ sealed class BridgeMsg {
     data class PairError(val error: String, val attemptsLeft: Int) : BridgeMsg()
     data class PairStream(val ok: Boolean, val error: String) : BridgeMsg()
     object Unpaired : BridgeMsg()
+    /** companion-only mode's art: the small files of a CASC folder from the PC's install (GameKit.cs), path -> bytes; [why] = none */
+    class GameKit(val files: Map<String, ByteArray>, val why: String) : BridgeMsg()
     data class Unknown(val t: String) : BridgeMsg()
 }
 
@@ -116,6 +118,11 @@ object BridgeProtocol {
         return if (v.size == 2 && v.all { it in 0f..1f }) v[0] to v[1] else null
     }
     fun unpair(): String = JSONObject().put("t", "unpair").toString()
+    /** companion-only mode: "the files my art harvest needs from your WoW install" ({"t":"game_kit"} back) */
+    fun gameKit(): String = JSONObject().put("t", "game_kit").toString()
+
+    /** the only paths a game kit may hold: .build.info, the mark, build / CDN configs and bucket indexes (nothing else is ever written) */
+    val KIT_PATH = Regex("""^(\.build\.info|\.ds-streamed|Data/config/[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{32}|Data/data/[0-9a-f]{10}\.idx)$""")
 
     private fun JSONObject.err() = optString("error", optString("code", "error"))
 
@@ -154,6 +161,12 @@ object BridgeProtocol {
             "pair_error" -> BridgeMsg.PairError(o.err(), o.optInt("attempts_left", -1))
             "pair_stream" -> BridgeMsg.PairStream(o.optBoolean("ok"), o.optString("error"))
             "unpaired" -> BridgeMsg.Unpaired
+            "game_kit" -> {
+                val f = o.optJSONObject("files")
+                val files = f?.keys()?.asSequence()?.filter { KIT_PATH.matches(it) }
+                    ?.mapNotNull { k -> runCatching { k to java.util.Base64.getDecoder().decode(f.optString(k)) }.getOrNull() }?.toMap().orEmpty()
+                BridgeMsg.GameKit(files, if (files.isEmpty()) o.optString("why").ifEmpty { "no files" } else "")
+            }
             else -> BridgeMsg.Unknown(t)
         }
     }
