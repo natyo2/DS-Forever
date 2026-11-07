@@ -84,10 +84,21 @@ object ArtHarvest {
     }
 
     /** every step, in the order they run (owners add theirs here) */
-    val STEPS: List<Step> by lazy {
+    val STEPS: List<Step> get() = if (mapsFirst) MAPS_FIRST else ORDERED
+    private val ORDERED: List<Step> by lazy {
         // AllIconsStep before Play, right after the kit's own icons (2026-11-04: every icon ready before the game starts)
         listOf<Step>(KitSteps.Kit, KitSteps.Cast, KitSteps.Icons, AllIconsStep) + MapHarvestSteps.STEPS + IndoorSchedulerStep
     }
+    private val MAPS_FIRST: List<Step> by lazy {
+        listOf<Step>(KitSteps.Kit, KitSteps.Cast, KitSteps.Icons) + MapHarvestSteps.STEPS + AllIconsStep + IndoorSchedulerStep
+    }
+
+    /**
+     * COMPANION-ONLY MODE (natyo2's fork; the user 2026-11-07: "no map is visible on the right panel", the every-icon set at pack 13 of
+     * 31 with the map behind it): the map's steps before the every-icon set. The game is already running on the PC there, the icons
+     * the UI uses are the "icons" step's, and the every-icon set fetches ~31 000 files one by one from the CDN.
+     */
+    @Volatile var mapsFirst = false
 
     /** the app's own art folder (replaces /sdcard/WowCompanion for everything game-derived) */
     fun root(ctx: Context): File =

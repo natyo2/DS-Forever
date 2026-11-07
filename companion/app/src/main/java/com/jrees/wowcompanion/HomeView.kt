@@ -2086,7 +2086,8 @@ class HomeView(
             if (!full && (open == null || !auras.live(now))) zoom(c, w, h, now)      // the open list covers that corner
             if (full) { drawFull(c, w, h, now); return }
             if (!auras.live(now)) { open = null; warning(c, buffTop(), h - 4f); return }
-            val nb = auras.shownBuffs.size; val nd = auras.shownDebuffs.size
+            // companion-only mode keeps the game's own buffs on the top screen (Hub.lua), so the small map shows none of its own
+            val nb = if (aurasOnTop) 0 else auras.shownBuffs.size; val nd = if (aurasOnTop) 0 else auras.shownDebuffs.size
             if (open == false && nb == 0 || open == true && nd == 0) { open = null; sel = null }
             // THE AURAS LISTED, NOT A BUTTON (the user 2026-09-30, LATER item 6: "I dont want it to show the triangles, I want it to
             // actually list them out and then go to the menus like it does now when I click on them"): the game's buff row, its
@@ -2536,6 +2537,13 @@ class HomeView(
     }
 
     companion object {
+        /**
+         * natyo2's fork (the user 2026-11-07: "the buffs are great, can we remove them from the companions map since we have them on
+         * the big screen now?"): the game's buffs and debuffs show on the top screen (Hub.lua no longer hides them), so the small map
+         * on Home draws no aura rows of its own. Set by companion-only mode; the open map module still lists them.
+         */
+        @Volatile var aurasOnTop = false
+
         /** one pick + act pair at a time: the add-on's pick serves one action (CompanionHost's restore uses the same gap) */
         const val WATCH_GAP_MS = 700L
         /** p-grow-glitch: B does not shrink the big controller this soon after it grew */

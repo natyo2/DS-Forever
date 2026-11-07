@@ -65,6 +65,15 @@ class WorldMapRoomView(context: Context) : View(context) {
     private var artNote: String? = null
     private fun artDir() = ArtHarvest.dir("worldmap")
 
+    /**
+     * the pictures were not there when this room was made (the art harvest still building them: companion-only mode starts it with
+     * the companion already up): the next time the room shows, they are read again
+     */
+    override fun onVisibilityChanged(changedView: android.view.View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility == VISIBLE && isShown && !artReady && File(artDir(), "manifest.json").isFile) loadArt()
+    }
+
     /** read the art set's manifest and indexes off the UI thread (60 small files) */
     fun loadArt() {
         laysFor = -1; seamZones.clear()                 // the layers follow the art read again

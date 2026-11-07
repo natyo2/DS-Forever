@@ -215,6 +215,8 @@ class PcCompanionActivity : Activity(), HostShell {
         RootPolicy.allowed = false
         // taps are fractions of WoW's window on the PC, whatever its shape (TapBridge.anyShape); the PC plays them (WowInput)
         TapBridge.anyShape = true
+        com.jrees.wowcompanion.ArtHarvest.mapsFirst = true     // before any art run starts (the icon retry may start one first)
+        com.jrees.wowcompanion.HomeView.aurasOnTop = true        // the game's own buffs show on the top screen (Hub.lua, set 263)
         InputSink.displayW = TapBridge.ANY_SHAPE; InputSink.displayH = TapBridge.ANY_SHAPE
         LauncherHooks.pkg = packageName
         LauncherHooks.gameUp = { true }
@@ -267,6 +269,7 @@ class PcCompanionActivity : Activity(), HostShell {
             .putString(com.jrees.wowcompanion.GameFiles.KEY_GAME_PATH, root.path).apply()
         val changed = oldInfo == null || !oldInfo.contentEquals(kit.files[".build.info"])
         Log.i(TAG, "game kit: ${kit.files.size} files${if (changed) ", a new build" else ""}; art harvest starts")
+        com.jrees.wowcompanion.ArtHarvest.mapsFirst = true
         if (changed && oldInfo != null) com.jrees.wowcompanion.ArtHarvest.restart(this)
         com.jrees.wowcompanion.ArtHarvest.start(applicationContext)
     }

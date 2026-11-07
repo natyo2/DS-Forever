@@ -94,6 +94,7 @@ namespace DsfDesktop.App
         {
             running = true;
             Log.I("DS Forever Desktop starting; data " + Paths.DataDir);
+            WowInput.Trace = Environment.GetEnvironmentVariable("DSF_INPUT_TRACE") == "1";     // a test's click trace (WowInput)
             LocateWow();
             StartBridge();
             StartSunshine();

@@ -59,8 +59,24 @@ namespace DsfDesktop.Wow
 
         bool Held(params int[] vks) { foreach (var v in vks) if (held.Contains(v)) return true; return false; }
 
+        /// <summary>the companion's clicks to desktop.log (where each landed), for a test; never the player's keyboard ("kbd")</summary>
+        public static volatile bool Trace;
+
         /// <summary>one "input" message (docs/STREAM_BRIDGE_PROTOCOL.md section 7); null = played, else why not</summary>
         public string Handle(Dictionary<string, object> m)
+        {
+            var why = HandleOne(m);
+            if (Trace && m.Str("op") != "kbd" && m.Str("op") != "move")
+                Log.I("input " + m.Str("op") + (m.ContainsKey("x") ? " " + m.Long("x") + "," + m.Long("y") + " of " + m.Long("w") + "x" + m.Long("h") : "") +
+                      (m.ContainsKey("b") ? " b" + m.Long("b") + (m.Bool("down") ? " down" : " up") : "") + (lastScreen != null ? " at " + lastScreen : "") +
+                      (why != null ? " REFUSED: " + why : ""));
+            lastScreen = null;
+            return why;
+        }
+
+        string lastScreen;
+
+        string HandleOne(Dictionary<string, object> m)
         {
             lock (gate)
             {
@@ -156,6 +172,7 @@ namespace DsfDesktop.Wow
             int vx = GetSystemMetrics(76), vy = GetSystemMetrics(77), vw = GetSystemMetrics(78), vh = GetSystemMetrics(79);
             if (vw <= 1 || vh <= 1) return;
             int nx = (int)Math.Round((sx - vx) * 65535.0 / (vw - 1)), ny = (int)Math.Round((sy - vy) * 65535.0 / (vh - 1));
+            lastScreen = (int)sx + "," + (int)sy + " (client " + (r.Right - r.Left) + "x" + (r.Bottom - r.Top) + " at " + p.X + "," + p.Y + ")";
             Mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, nx, ny, 0);
         }
 
