@@ -8,6 +8,7 @@
         android:label="DSF PC Companion"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
+        android:largeHeap="true"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />

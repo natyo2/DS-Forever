@@ -21,7 +21,7 @@
 local WC = _G.WowCompanion
 if type(WC) ~= "table" then return end
 
-local TV = "t1"
+local TV = "t2"
 local TICK = 0.25
 local MAXA = 8
 
@@ -58,20 +58,72 @@ local function frameBar(paths)
     end
 end
 
+-- OUR OWN BAR (t2, the first test: hp missing on every document, the game's values and its target frame both hidden): a status bar of
+-- this file's own, off screen and invisible, given the game's values as they are (a widget takes a hidden value; Lua may not read
+-- it), its fill's drawn width read back one tick later. Only read, never shown.
+local probes = {}
+local function probe(key)
+    local b = probes[key]
+    if b then return b end
+    local ok = pcall(function()
+        b = CreateFrame("StatusBar", nil, UIParent)
+        b:SetSize(1000, 4)
+        b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -3000, 3000)
+        b:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+        b:SetAlpha(0)
+        b:Show()
+    end)
+    if not ok then b = nil end
+    probes[key] = b or false
+    return b
+end
+local function probeSet(key, cur, max)
+    local b = probe(key)
+    if not b then return end
+    pcall(function() b:SetMinMaxValues(0, max); b:SetValue(cur) end)
+end
+local function probeRead(key)
+    local b = probes[key]
+    if not b then return nil end
+    local tw = num(call(function() local t = b:GetStatusBarTexture(); return t and t:GetWidth() end))
+    local fw = num(call(function() return b:GetWidth() end))
+    if tw and fw and fw > 0 then return math.max(0, math.min(100, math.floor(tw * 100 / fw + 0.5))) end
+end
+-- the game's values into our bars (called on every change; read back by the next build)
+local function feedProbes()
+    probeSet("hp", call(UnitHealth, "target"), call(UnitHealthMax, "target"))
+    probeSet("pw", call(UnitPower, "target"), call(UnitPowerMax, "target"))
+end
+
+-- what the game left readable, per value (the test's answer: which way each number was read, or why not)
+local dbg = {}
+local function kind(v)
+    if v == nil then return "nil" end
+    if type(issecretvalue) == "function" then local ok, q = pcall(issecretvalue, v); if not ok then return "err" elseif q then return "secret" end end
+    return type(v)
+end
+
 local function health()
+    dbg.uh = kind(call(UnitHealth, "target")); dbg.cb = InCombatLockdown() and true or nil
     local p = pct(num(call(UnitHealth, "target")), num(call(UnitHealthMax, "target")))
-    if p then return p end
+    if p then dbg.hs = "unit"; return p end
     if type(UnitHealthPercent) == "function" then
         local q = num(call(UnitHealthPercent, "target"))
-        if q then return math.floor((q <= 1 and q * 100 or q) + 0.5) end
+        if q then dbg.hs = "pct"; return math.floor((q <= 1 and q * 100 or q) + 0.5) end
     end
-    return frameBar({ { "TargetFrame", "TargetFrameContent", "TargetFrameContentMain", "HealthBarsContainer", "HealthBar" },
-                      { "TargetFrameHealthBar" }, { "TargetFrame", "healthbar" } })
+    local own = probeRead("hp")
+    if own then dbg.hs = "own"; return own end
+    local f = frameBar({ { "TargetFrame", "TargetFrameContent", "TargetFrameContentMain", "HealthBarsContainer", "HealthBar" },
+                         { "TargetFrameHealthBar" }, { "TargetFrame", "healthbar" } })
+    dbg.hs = f and "frame" or "none"
+    return f
 end
 
 local function power()
     local p = pct(num(call(UnitPower, "target")), num(call(UnitPowerMax, "target")))
     if p then return p end
+    local own = probeRead("pw")
+    if own then return own end
     return frameBar({ { "TargetFrame", "TargetFrameContent", "TargetFrameContentMain", "ManaBar" },
                       { "TargetFrameManaBar" }, { "TargetFrame", "manabar" } })
 end
@@ -106,6 +158,7 @@ end
 
 local function cast()
     local n, _, icon, s, e = call(UnitCastingInfo, "target")
+    dbg.ci = kind(n)
     local ch = false
     if not str(n) then n, _, icon, s, e = call(UnitChannelInfo, "target"); ch = true end
     n, icon, s, e = str(n), num(icon), num(s), num(e)
@@ -131,6 +184,8 @@ local function build()
     doc.cast = cast()
     doc.b = auras("HELPFUL")
     doc.d = auras("HARMFUL")
+    doc.dbg = dbg
+    dbg = {}
     return doc
 end
 
@@ -153,6 +208,7 @@ local function send()
 end
 
 local function soon()
+    pcall(feedProbes)
     if queued then return end
     queued = true
     C_Timer.After(TICK, function() queued = false; send() end)
@@ -168,12 +224,13 @@ for _, e in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT
     if not ok then pcall(f.RegisterEvent, f, e) end
 end
 f:SetScript("OnEvent", function(_, e, unit)
-    if e == "PLAYER_TARGET_CHANGED" then send(); return end
+    if e == "PLAYER_TARGET_CHANGED" then pcall(feedProbes); send(); C_Timer.After(0.1, send); return end
     if unit ~= nil and unit ~= "target" then return end
     soon()
 end)
 
 -- a hidden health value moves without events: one look a second while a target exists
 C_Timer.NewTicker(1, function()
-    if bool(call(UnitExists, "target")) or (last ~= nil and not last:find('"has":false', 1, true)) then send() end
+    if bool(call(UnitExists, "target")) then pcall(feedProbes); C_Timer.After(0.1, send)
+    elseif last ~= nil and not last:find('"has":false', 1, true) then send() end
 end)
