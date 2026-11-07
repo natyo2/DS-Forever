@@ -13,6 +13,12 @@ import android.view.accessibility.AccessibilityEvent
  * while the streamer (Artemis / Moonlight) is the app in front and the companion is connected; each key edge goes to Desktop as one
  * "kbd" input (WowInput.cs: played only while WoW is in front, never the Windows / Menu / media keys, Alt+Tab, Alt+F4, Ctrl+Esc).
  * Everything else, and every key while another app is in front, goes on to Android as before. Volume / media keys are Android's.
+ *
+ * THE CONTROLLER'S COPY (the user, 2026-11-07: "when I press the R or L triggers it does not change the companion view"): Artemis has
+ * the controller, so the companion saw none of its presses. Every key of a game controller is COPIED to the companion's pad readers
+ * (PadFeed: the layer buttons L / R / ZL / ZR, the face buttons, the D-pad, as StreamTop and the launcher hand them) and never taken:
+ * Artemis and the game still get every press. Analog trigger travel is a motion event, which accessibility does not see; the
+ * triggers' key presses carry the layers.
  */
 class KeyboardBridgeService : AccessibilityService() {
     /** keys whose press this service took: their release goes the same way, whatever is in front by then */
@@ -22,6 +28,10 @@ class KeyboardBridgeService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (fromPad(event)) {
+            if (PcCompanionActivity.keyboard != null) try { com.jrees.wowcompanion.PadFeed.key(event) } catch (_: Throwable) {}
+            return false
+        }
         if (!fromKeyboard(event)) return false
         val code = event.keyCode
         val down = event.action == KeyEvent.ACTION_DOWN
@@ -41,6 +51,12 @@ class KeyboardBridgeService : AccessibilityService() {
         val d = e.device ?: return false
         return d.isExternal && d.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC &&
             (d.sources and InputDevice.SOURCE_GAMEPAD) != InputDevice.SOURCE_GAMEPAD
+    }
+
+    /** a game controller's key (the Thor's own pad or a paired one) */
+    private fun fromPad(e: KeyEvent): Boolean {
+        val s = e.device?.sources ?: e.source
+        return (s and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD || (s and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
     }
 
     private fun streamerInFront(): Boolean =

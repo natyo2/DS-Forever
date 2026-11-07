@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="dsf_keyboard_service_label">DSF PC keyboard</string>
-    <string name="dsf_keyboard_service_description">While Artemis shows your PC and DSF PC Companion is connected, the keys of your Bluetooth keyboard go to WoW on the PC through DS Forever Desktop. The Thor\'s own controller, AYN and Home buttons, and the keyboard in every other app, work as usual.</string>
+    <string name="dsf_keyboard_service_description">While Artemis shows your PC and DSF PC Companion is connected, the keys of your Bluetooth keyboard go to WoW on the PC through DS Forever Desktop. The Thor\'s own controller, AYN and Home buttons, and the keyboard in every other app, work as usual. The companion only watches the controller buttons (to show your L and R button layers); it never takes them.</string>
 </resources>
