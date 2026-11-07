@@ -21,7 +21,7 @@
 local WC = _G.WowCompanion
 if type(WC) ~= "table" then return end
 
-local TV = "t2"
+local TV = "t3"
 local TICK = 0.25
 local MAXA = 8
 
@@ -58,43 +58,6 @@ local function frameBar(paths)
     end
 end
 
--- OUR OWN BAR (t2, the first test: hp missing on every document, the game's values and its target frame both hidden): a status bar of
--- this file's own, off screen and invisible, given the game's values as they are (a widget takes a hidden value; Lua may not read
--- it), its fill's drawn width read back one tick later. Only read, never shown.
-local probes = {}
-local function probe(key)
-    local b = probes[key]
-    if b then return b end
-    local ok = pcall(function()
-        b = CreateFrame("StatusBar", nil, UIParent)
-        b:SetSize(1000, 4)
-        b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -3000, 3000)
-        b:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-        b:SetAlpha(0)
-        b:Show()
-    end)
-    if not ok then b = nil end
-    probes[key] = b or false
-    return b
-end
-local function probeSet(key, cur, max)
-    local b = probe(key)
-    if not b then return end
-    pcall(function() b:SetMinMaxValues(0, max); b:SetValue(cur) end)
-end
-local function probeRead(key)
-    local b = probes[key]
-    if not b then return nil end
-    local tw = num(call(function() local t = b:GetStatusBarTexture(); return t and t:GetWidth() end))
-    local fw = num(call(function() return b:GetWidth() end))
-    if tw and fw and fw > 0 then return math.max(0, math.min(100, math.floor(tw * 100 / fw + 0.5))) end
-end
--- the game's values into our bars (called on every change; read back by the next build)
-local function feedProbes()
-    probeSet("hp", call(UnitHealth, "target"), call(UnitHealthMax, "target"))
-    probeSet("pw", call(UnitPower, "target"), call(UnitPowerMax, "target"))
-end
-
 -- what the game left readable, per value (the test's answer: which way each number was read, or why not)
 local dbg = {}
 local function kind(v)
@@ -111,8 +74,6 @@ local function health()
         local q = num(call(UnitHealthPercent, "target"))
         if q then dbg.hs = "pct"; return math.floor((q <= 1 and q * 100 or q) + 0.5) end
     end
-    local own = probeRead("hp")
-    if own then dbg.hs = "own"; return own end
     local f = frameBar({ { "TargetFrame", "TargetFrameContent", "TargetFrameContentMain", "HealthBarsContainer", "HealthBar" },
                          { "TargetFrameHealthBar" }, { "TargetFrame", "healthbar" } })
     dbg.hs = f and "frame" or "none"
@@ -122,8 +83,6 @@ end
 local function power()
     local p = pct(num(call(UnitPower, "target")), num(call(UnitPowerMax, "target")))
     if p then return p end
-    local own = probeRead("pw")
-    if own then return own end
     return frameBar({ { "TargetFrame", "TargetFrameContent", "TargetFrameContentMain", "ManaBar" },
                       { "TargetFrameManaBar" }, { "TargetFrame", "manabar" } })
 end
@@ -156,6 +115,35 @@ local function auras(filter)
     return out
 end
 
+-- THE TARGET'S PICTURE (the user: "nice to have an image of the target"; the game's portrait is drawn in the game and cannot leave
+-- it): an icon of the game's own, its fileID looked up here by path (GetFileIDFromPath), so the app draws it from its icon packs.
+-- A player = their class icon; a beast = its family's hunter-pet icon (Wolf, Bear, Spider...); anything else = its creature type's.
+local TYPE_ICON = {
+    Beast = "Ability_Hunter_Pet_Wolf", Humanoid = "INV_Misc_Head_Human_01", Undead = "Spell_Shadow_RaiseDead",
+    Demon = "Spell_Shadow_SummonImp", Elemental = "Spell_Frost_SummonWaterElemental", Dragonkin = "INV_Misc_Head_Dragon_01",
+    Giant = "Ability_Racial_Avatar", Mechanical = "INV_Misc_Gear_01", Critter = "Ability_Hunter_Pet_Boar",
+    Totem = "Spell_Nature_StoneSkinTotem", Aberration = "Spell_Shadow_Charm",
+}
+local function fileOf(name)
+    if type(GetFileIDFromPath) ~= "function" or type(name) ~= "string" then return nil end
+    return num(call(GetFileIDFromPath, "Interface\\Icons\\" .. name))
+end
+local iconCache = {}
+local function picture(isPlayer, classFile)
+    local key
+    if isPlayer and classFile then key = "ClassIcon_" .. classFile:sub(1, 1) .. classFile:sub(2):lower()
+    else
+        local fam = str(call(UnitCreatureFamily, "target"))
+        local ty = str(call(UnitCreatureType, "target"))
+        if fam then key = "Ability_Hunter_Pet_" .. fam:gsub("%s", "") end
+        if key and not fileOf(key) then key = nil end
+        key = key or (ty and TYPE_ICON[ty]) or nil
+    end
+    if not key then return nil end
+    if iconCache[key] == nil then iconCache[key] = fileOf(key) or false end
+    return iconCache[key] or nil
+end
+
 local function cast()
     local n, _, icon, s, e = call(UnitCastingInfo, "target")
     dbg.ci = kind(n)
@@ -178,6 +166,7 @@ local function build()
     doc.pl = bool(call(UnitIsPlayer, "target")) or nil
     if doc.pl then local _, file = call(UnitClass, "target"); doc.cl = str(file) end
     doc.dead = bool(call(UnitIsDeadOrGhost, "target")) or nil
+    doc.ic = picture(doc.pl, doc.cl)
     doc.hp = health()
     doc.pw = power()
     local _, tok = call(UnitPowerType, "target"); doc.pt = str(tok)
@@ -208,7 +197,6 @@ local function send()
 end
 
 local function soon()
-    pcall(feedProbes)
     if queued then return end
     queued = true
     C_Timer.After(TICK, function() queued = false; send() end)
@@ -224,13 +212,12 @@ for _, e in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT
     if not ok then pcall(f.RegisterEvent, f, e) end
 end
 f:SetScript("OnEvent", function(_, e, unit)
-    if e == "PLAYER_TARGET_CHANGED" then pcall(feedProbes); send(); C_Timer.After(0.1, send); return end
+    if e == "PLAYER_TARGET_CHANGED" then send(); return end
     if unit ~= nil and unit ~= "target" then return end
     soon()
 end)
 
 -- a hidden health value moves without events: one look a second while a target exists
 C_Timer.NewTicker(1, function()
-    if bool(call(UnitExists, "target")) then pcall(feedProbes); C_Timer.After(0.1, send)
-    elseif last ~= nil and not last:find('"has":false', 1, true) then send() end
+    if bool(call(UnitExists, "target")) or (last ~= nil and not last:find('"has":false', 1, true)) then send() end
 end)

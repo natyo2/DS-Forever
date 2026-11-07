@@ -25,7 +25,9 @@ class TargetCard(context: Context) : View(context) {
     data class Cast(val name: String, val start: Double, val end: Double, val channel: Boolean)
     data class Target(val name: String, val level: Int?, val cls: String?, val reaction: String, val player: Boolean, val classFile: String?,
                       val dead: Boolean, val hp: Int?, val pw: Int?, val powerType: String?, val cast: Cast?,
-                      val buffs: List<Aura>, val debuffs: List<Aura>, val gameNow: Double, val at: Long)
+                      val buffs: List<Aura>, val debuffs: List<Aura>, val gameNow: Double, val at: Long,
+                      /** the picture: a class icon, the beast family's or the creature type's (Target.lua), 0 = none */
+                      val icon: Int = 0)
 
     /** the current target, null = none (Home leaves the card out) */
     var target: Target? = null
@@ -58,39 +60,52 @@ class TargetCard(context: Context) : View(context) {
         c.drawRoundRect(r, 12f, 12f, panel)
 
         val pad = 12f
+        // the picture on the left of the name and bars (a class icon, the beast family's or the creature type's)
+        var left = pad
+        val pic = if (t.icon > 0) Icons.get(t.icon) else null
+        if (pic != null) {
+            val ps = 64f
+            r.set(pad, pad, pad + ps, pad + ps)
+            c.drawBitmap(pic, null, r, null)
+            panel.style = Paint.Style.STROKE; panel.strokeWidth = 2f; panel.color = edge
+            c.drawRect(r, panel)
+            left = pad + ps + 10f
+        }
         var y = pad + name.textSize
         // line 1: level, name, elite / rare
         val lv = when { t.level == null -> ""; t.level < 0 -> "?? "; else -> "${t.level} " }
         val tag = when (t.cls) { "elite" -> " (Elite)"; "rare" -> " (Rare)"; "rareelite" -> " (Rare Elite)"; "worldboss" -> " (Boss)"; else -> "" }
         name.color = edge
-        val title = TextFit.fit(lv + t.name + tag, name, w - 2 * pad)
-        c.drawText(title, pad, y, name)
+        val title = TextFit.fit(lv + t.name + tag, name, w - left - pad)
+        c.drawText(title, left, y, name)
 
-        // health bar
+        // health bar: only when the game lets it be read (this client hides other units' health from add-ons, measured 2026-11-07;
+        // a dead target still says so)
         y += 10f
         val barH = 26f
-        r.set(pad, y, w - pad, y + barH)
-        bar(c, r, t.hp, if (t.dead) Color.rgb(90, 90, 90) else Color.rgb(40, 170, 60),
-            when { t.dead -> "Dead"; t.hp == null -> "?"; else -> "${t.hp}%" })
-        y += barH + 4f
+        if (t.hp != null || t.dead) {
+            r.set(left, y, w - pad, y + barH)
+            bar(c, r, t.hp, if (t.dead) Color.rgb(90, 90, 90) else Color.rgb(40, 170, 60), if (t.dead) "Dead" else "${t.hp}%")
+            y += barH + 4f
+        }
         // power bar (thin)
         if (t.pw != null && !t.dead) {
-            r.set(pad, y, w - pad, y + 10f)
+            r.set(left, y, w - pad, y + 10f)
             bar(c, r, t.pw, powerColour(t.powerType), null)
             y += 14f
         }
         // the cast bar while it casts
         val now = gameNow(t)
         t.cast?.takeIf { now < it.end && it.end > it.start }?.let { cast ->
-            r.set(pad, y, w - pad, y + 22f)
+            r.set(left, y, w - pad, y + 22f)
             val done = ((now - cast.start) / (cast.end - cast.start)).coerceIn(0.0, 1.0)
             val p = (if (cast.channel) 1.0 - done else done) * 100
             bar(c, r, p.toInt(), Color.rgb(230, 170, 40), cast.name)
             y += 26f
             postInvalidateDelayed(50)
         }
-        // the auras: buffs, then debuffs (the player's own ringed in gold), as far as the width allows
-        y += 4f
+        // the auras: buffs, then debuffs (the player's own ringed in gold), as far as the width allows; under the picture
+        y = maxOf(y + 4f, if (pic != null) pad + 64f + 8f else 0f)
         val size = (h - y - pad).coerceIn(0f, 44f)
         if (size >= 24f) {
             var x = pad
@@ -162,6 +177,7 @@ class TargetCard(context: Context) : View(context) {
                 debuffs = auras(o.optJSONArray("d")),
                 gameNow = o.optDouble("now", 0.0),
                 at = at,
+                icon = o.optInt("ic", 0),
             )
         }
 

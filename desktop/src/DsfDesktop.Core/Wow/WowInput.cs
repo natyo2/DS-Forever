@@ -37,6 +37,9 @@ namespace DsfDesktop.Wow
         long refilledAt;
         IntPtr hwnd;
         long hwndAt = long.MinValue;
+        /// <summary>the last "pos" point (normalized virtual-desktop units) and when: a click's two edges are played there</summary>
+        int placedX, placedY;
+        long placedAt = long.MinValue / 2;
 
         /// <param name="findWindow">WoW's main window (Zero = not running)</param>
         /// <param name="bringToFront">WoW to the front; true = it is now</param>
@@ -113,7 +116,13 @@ namespace DsfDesktop.Wow
                         return null;
                     case "button":
                         bool right = m.Long("b") == 3;
-                        Mouse(right ? (down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP) : (down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP), 0, 0, 0);
+                        uint edge = right ? (down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP) : (down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP);
+                        // THE CLICK WHERE THE TAP WAS, ON BOTH EDGES (the Thor, 2026-11-07: Tailoring never opened; its clicks landed on the
+                        // add-on's secure cell, which acts on the RELEASE over the same button, TapPad.lua). In controller mode the game
+                        // parks its hidden cursor at a fixed point, so between the press and the release it could move away: each edge
+                        // carries the last placed point, the cursor put back there in the same event.
+                        if (clock.ElapsedMilliseconds - placedAt < 2000) Mouse(edge | MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, placedX, placedY, 0);
+                        else Mouse(edge, 0, 0, 0);
                         return null;
                     case "scroll":
                         Mouse(MOUSEEVENTF_WHEEL, 0, 0, (int)Clamp(m.Long("amount"), -1200, 1200));
@@ -173,6 +182,7 @@ namespace DsfDesktop.Wow
             if (vw <= 1 || vh <= 1) return;
             int nx = (int)Math.Round((sx - vx) * 65535.0 / (vw - 1)), ny = (int)Math.Round((sy - vy) * 65535.0 / (vh - 1));
             lastScreen = (int)sx + "," + (int)sy + " (client " + (r.Right - r.Left) + "x" + (r.Bottom - r.Top) + " at " + p.X + "," + p.Y + ")";
+            placedX = nx; placedY = ny; placedAt = clock.ElapsedMilliseconds;
             Mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, nx, ny, 0);
         }
 
